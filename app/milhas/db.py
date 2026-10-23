@@ -81,11 +81,22 @@ def tx():
         conn.close()
 
 
+MIGRACOES = {
+    # tabela: [(coluna, definição)] — colunas adicionadas depois da primeira versão
+    "trechos": [("cias", "TEXT")],
+}
+
+
 def init() -> None:
     os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
     with tx() as c:
         c.execute("PRAGMA journal_mode = WAL")
         c.executescript(SCHEMA)
+        for tabela, colunas in MIGRACOES.items():
+            existentes = {r["name"] for r in c.execute(f"PRAGMA table_info({tabela})")}
+            for nome, definicao in colunas:
+                if nome not in existentes:
+                    c.execute(f"ALTER TABLE {tabela} ADD COLUMN {nome} {definicao}")
 
 
 def trechos_ativos() -> list[dict]:

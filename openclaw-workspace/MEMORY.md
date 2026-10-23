@@ -23,6 +23,11 @@ Carregar só na sessão principal. Resumo curado, não log.
   não traz o plugin `deepseek` embutido e entrava em loop no doctor. Não voltar para
   `:latest` sem instalar `@openclaw/deepseek-provider` antes.
 
+- 2026-10-23: voz no Telegram via ElevenLabs. `tts.auto: inbound` (responde em áudio só
+  quando o usuário manda áudio), persona `comissaria` (voz Sarah `EXAVITQu4vr4xnSDxMaL`,
+  `eleven_multilingual_v2`, pt), transcrição com Scribe v2. Chave em `ELEVENLABS_API_KEY`
+  no `.env` do OpenClaw. Modelo padrão do agente: `deepseek/deepseek-flash`.
+
 ## Próximas fases
 
 - Disponibilidade em milhas por trecho (Seats.aero, pago) usando o `max_milhas` já cadastrado.

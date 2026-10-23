@@ -23,6 +23,7 @@ node {baseDir}/milhas.mjs <comando>
 | "pode variar 3 dias" | `--flex 3` |
 | "somos 2 adultos" | `--adultos 2` |
 | "aceito até 150 mil milhas" | `--max-milhas 150000` |
+| "só LATAM e Azul" | `--cias LA,AD` (códigos IATA: LATAM=LA, Gol=G3, Azul=AD, TAP=TP, Copa=CM, American=AA…) |
 | "muda o teto do trecho 4 para 5 mil" | `trechos editar 4 --max-reais 5000` |
 | "pausa / reativa o trecho 4" | `trechos pausar 4` / `trechos ativar 4` |
 | "apaga o trecho 4" | `trechos remover 4` |
