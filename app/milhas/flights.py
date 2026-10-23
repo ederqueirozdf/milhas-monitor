@@ -19,8 +19,12 @@ CIDADES_MULTI = {
 }
 
 
-def aeroportos(codigo: str) -> str:
-    return CIDADES_MULTI.get(codigo.upper(), codigo.upper())
+def aeroportos(codigos: str) -> str:
+    """'SAO,GYN' → 'GRU,CGH,VCP,GYN': expande códigos de cidade e remove repetidos."""
+    lista = []
+    for c in codigos.upper().split(","):
+        lista += CIDADES_MULTI.get(c.strip(), c.strip()).split(",")
+    return ",".join(dict.fromkeys(c for c in lista if c))
 
 
 @dataclass
@@ -121,6 +125,8 @@ def pesquisar(trecho: dict, ida: date, volta: date | None, limite: int = 10) -> 
             "cias": _cias(o),
             "logo": o.get("airline_logo"),
             "paradas": max(len(voos) - 1, 0),
+            "escalas": [l.get("id") for l in o.get("layovers", []) if l.get("id")]
+                       or [v.get("arrival_airport", {}).get("id") for v in voos[:-1]],
             "duracao_min": o.get("total_duration"),
             "partida": voos[0].get("departure_airport", {}).get("time"),
             "chegada": voos[-1].get("arrival_airport", {}).get("time"),

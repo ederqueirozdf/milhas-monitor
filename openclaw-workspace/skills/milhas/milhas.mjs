@@ -13,6 +13,7 @@ const AJUDA = `Uso:
                     [--max-reais 6000] [--max-milhas 150000] [--palavras "lisboa,portugal"] [--obs "texto"]
                     [--cias LA,AD,G3]
   trechos editar ID [mesmas opções de adicionar]
+  pesquisar [mesmas opções de adicionar]   (1 busca na SerpAPI; não grava nada)
   trechos pausar ID | ativar ID | remover ID
   trechos precos ID
   promocoes [--dias 7] [--tipo transferencia|compra|clube|cartao] [--programa Smiles]
@@ -79,6 +80,15 @@ async function main() {
     else if (acao === "ativar" && id) r = await api("PATCH", `/trechos/${id}`, { ativo: true });
     else if (acao === "remover" && id) r = await api("DELETE", `/trechos/${id}`);
     else if (acao === "precos" && id) r = await api("GET", `/trechos/${id}/precos`);
+  } else if (grupo === "pesquisar") {
+    // pesquisar --origem GRU,VCP --destino EZE,AEP --ida 2027-03-10 [...]: 1 busca, nada é gravado
+    const p = opcoes(process.argv.slice(3));
+    const res = await api("POST", "/pesquisar", corpoTrecho(p));
+    r = {
+      nivel_preco: res.nivel_preco, faixa_tipica: res.faixa_tipica, erro: res.erro, link: res.link,
+      opcoes: res.opcoes.map((x) => ({ preco: x.preco, cias: x.cias, de: x.de, para: x.para,
+        paradas: x.paradas, escalas: x.escalas, duracao_h: x.duracao_min ? +(x.duracao_min / 60).toFixed(1) : null })),
+    };
   } else if (grupo === "promocoes") {
     const p = opcoes(process.argv.slice(3));
     const q = new URLSearchParams();
