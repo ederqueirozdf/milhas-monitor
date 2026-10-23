@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Milhas Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700&family=Big+Shoulders+Display:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  /* Correio aéreo + cartão de embarque */
+  :root {
+    --fundo: #E9EEF5;        /* papel aéreo */
+    --papel: #FFFFFF;
+    --tinta: #14213D;        /* marinho */
+    --tinta-2: #4A5878;
+    --linha: #C9D3E2;
+    --azul: #1D3F8F;         /* azul correio */
+    --vermelho: #C8102E;     /* vermelho correio */
+    --verde: #2E7D4F;        /* carimbo */
+    --ambar: #A86A00;
+    --sombra: 0 1px 0 rgba(20, 33, 61, .06), 0 14px 30px -18px rgba(20, 33, 61, .45);
+    --display: "Big Shoulders Display", "Arial Narrow", sans-serif;
+    --texto: "Libre Franklin", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fundo: #0E1830;      /* voo noturno */
+      --papel: #17244A;
+      --tinta: #E8EEF8;
+      --tinta-2: #A3B1CC;
+      --linha: #2C3B66;
+      --azul: #8DB0FF;
+      --vermelho: #FF6B7D;
+      --verde: #5CC48B;
+      --ambar: #F0B44C;
+      --sombra: 0 14px 30px -18px rgba(0, 0, 0, .7);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--fundo); color: var(--tinta);
+    font: 16px/1.5 var(--texto); font-variant-numeric: tabular-nums;
+  }
+  a { color: var(--azul); text-underline-offset: 3px; }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--azul); outline-offset: 2px; border-radius: 4px; }
+  .oculto { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* Faixa de correio aéreo: a única decoração da página */
+  .par-avion {
+    height: 10px;
+    background: repeating-linear-gradient(-45deg,
+      var(--vermelho) 0 18px, transparent 18px 26px, var(--azul) 26px 44px, transparent 44px 52px);
+  }
+
+  .topo {
+    max-width: 1180px; margin: 0 auto; padding: 22px 20px 6px;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  .marca { font: 800 30px/1 var(--display); letter-spacing: .5px; margin: 0; }
+  .topo-acoes { display: flex; gap: 10px; align-items: center; }
+
+  /* Botões */
+  .btn {
+    border: 0; border-radius: 6px; padding: 9px 16px; cursor: pointer; font-weight: 700;
+    background: var(--azul); color: var(--papel);
+  }
+  .btn-linha { background: transparent; color: var(--tinta); border: 1.5px solid var(--linha); }
+  .btn-texto { background: none; border: 0; padding: 4px 0; color: var(--azul); font-weight: 700; cursor: pointer; text-align: left; }
+  .btn-texto.perigo { color: var(--vermelho); }
+  .btn:disabled, .btn-texto:disabled { opacity: .5; cursor: default; }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 8px 20px 64px; }
+
+  /* Rotas */
+  .rotas-cab { display: flex; align-items: end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 18px 0 18px; }
+  .rotas-cab h1 { font: 800 clamp(44px, 7vw, 76px)/.9 var(--display); margin: 0; letter-spacing: .5px; }
+  .rotas-cab p { margin: 8px 0 0; color: var(--tinta-2); max-width: 60ch; }
+  .rotas-acoes { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .chave { display: flex; gap: 8px; align-items: center; color: var(--tinta-2); cursor: pointer; }
+  .chave input { width: 18px; height: 18px; accent-color: var(--azul); }
+
+  .passes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 22px; }
+
+  .pass {
+    display: grid; grid-template-columns: 1fr 172px;
+    background: var(--papel); border-radius: 14px; box-shadow: var(--sombra); overflow: hidden;
+  }
+  .pass-corpo { padding: 0 0 18px; min-width: 0; }
+  .pass-faixa {
+    display: flex; justify-content: space-between; gap: 12px; align-items: center;
+    background: var(--azul); color: var(--papel); padding: 8px 20px; font-weight: 700; font-size: 14px;
+  }
+  .pausada .pass-faixa { background: var(--tinta-2); }
+  .pass-rota {
+    display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
+    padding: 16px 20px 4px;
+  }
+  .iata { font: 800 clamp(52px, 8vw, 72px)/.85 var(--display); letter-spacing: 1px; }
+  .cidade { display: block; font: 400 14px/1.3 var(--texto); color: var(--tinta-2); margin-top: 6px; letter-spacing: 0; }
+  .destino { text-align: right; }
+  .voo { position: relative; height: 24px; }
+  .voo::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed var(--linha); }
+  .aviao {
+    position: absolute; top: 50%; left: calc(100% - 22px); width: 22px; height: 22px; margin-top: -11px;
+    color: var(--vermelho); background: var(--papel);
+    animation: decolar 1.6s cubic-bezier(.45, 0, .25, 1) .2s both;
+  }
+  @keyframes decolar { from { left: 0; } to { left: calc(100% - 22px); } }
+
+  .pass-dados {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 10px 16px;
+    padding: 14px 20px 0; margin: 0;
+  }
+  .pass-dados div { min-width: 0; }
+  .pass-dados dt { font-size: 13px; color: var(--tinta-2); }
+  .pass-dados dd { margin: 0; font-weight: 700; }
+  .pass-precos { margin: 12px 20px 0; font-size: 14px; color: var(--tinta-2); }
+  .pass-precos:empty { display: none; }
+
+  /* Canhoto picotado */
+  .canhoto {
+    position: relative; border-left: 2px dashed var(--linha);
+    padding: 44px 18px 18px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .canhoto::before, .canhoto::after {
+    content: ""; position: absolute; left: -12px; width: 22px; height: 22px; border-radius: 50%; background: var(--fundo);
+  }
+  .canhoto::before { top: -11px; }
+  .canhoto::after { bottom: -11px; }
+  .canhoto .rot { font-size: 13px; color: var(--tinta-2); }
+  .teto { font: 800 34px/1 var(--display); }
+  .teto.vazio { font: 400 15px/1.3 var(--texto); color: var(--tinta-2); }
+  .canhoto .milhas { font-size: 14px; color: var(--tinta-2); }
+  .canhoto .acoes { margin-top: auto; padding-top: 14px; display: grid; gap: 4px; }
+
+  /* Novo trecho: um cartão em branco */
+  .pass-novo {
+    border: 2px dashed var(--linha); border-radius: 14px; background: transparent; cursor: pointer;
+    min-height: 220px; display: grid; place-content: center; gap: 6px; text-align: center; color: var(--tinta-2); padding: 24px;
+  }
+  .pass-novo b { font: 800 34px/1 var(--display); color: var(--tinta); }
+  .pass-novo:hover { border-color: var(--azul); }
+
+  /* Parte de baixo */
+  .baixo { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 40px; margin-top: 56px; align-items: start; }
+  h2 { font: 800 40px/1 var(--display); margin: 0; letter-spacing: .4px; }
+  .promos-cab { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .filtros { display: flex; gap: 8px; }
+  select, input {
+    background: var(--papel); border: 1.5px solid var(--linha); border-radius: 6px; padding: 8px 10px;
+  }
+
+  .promos { list-style: none; margin: 0; padding: 0; }
+  .promo {
+    display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 18px;
+    padding: 18px 0; border-bottom: 1.5px solid var(--linha);
+  }
+  .cifra { text-align: right; }
+  .cifra b { display: block; font: 800 44px/.9 var(--display); }
+  .cifra small { font-size: 13px; color: var(--tinta-2); }
+  .t-transferencia .cifra b { color: var(--vermelho); }
+  .t-compra .cifra b { color: var(--azul); }
+  .t-clube .cifra b, .t-cartao .cifra b, .cifra.neutra b { font-size: 26px; padding-top: 8px; color: var(--tinta); }
+  .promo-rota { font-weight: 700; }
+  .promo a { display: block; margin: 2px 0 6px; max-width: 70ch; }
+  .promo-meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; color: var(--tinta-2); }
+  .validade { color: var(--ambar); font-weight: 700; }
+
+  /* Radar */
+  .radar { position: sticky; top: 16px; }
+  .radar h2 { font-size: 30px; margin-bottom: 14px; }
+  .radar dl { margin: 0; display: grid; gap: 12px; }
+  .radar dt { font-size: 13px; color: var(--tinta-2); }
+  .radar dd { margin: 0; font-weight: 700; }
+  .estado { display: inline-flex; align-items: center; gap: 8px; }
+  .estado::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+  .ok { color: var(--verde); } .alerta { color: var(--ambar); } .erro { color: var(--vermelho); }
+  .feeds { list-style: none; padding: 0; margin: 4px 0 0; display: grid; gap: 4px; font-weight: 400; }
+  .radar .acoes { display: grid; gap: 8px; margin-top: 20px; }
+
+  .vazio-msg { color: var(--tinta-2); padding: 18px 0; }
+
+  /* Login: o check-in */
+  .checkin { max-width: 560px; margin: 9vh auto 0; padding: 0 20px; }
+  .checkin .pass { grid-template-columns: 1fr; }
+  .checkin form { display: grid; gap: 12px; padding: 20px; }
+  .checkin label { display: grid; gap: 6px; font-weight: 700; }
+  .checkin p { margin: 0; color: var(--tinta-2); font-size: 14px; }
+
+  /* Diálogo de nova rota */
+  dialog { border: 0; border-radius: 14px; padding: 0; width: min(640px, calc(100% - 32px)); background: var(--papel); color: var(--tinta); box-shadow: var(--sombra); }
+  dialog::backdrop { background: rgba(14, 24, 48, .55); }
+  .form-rota { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; padding: 20px; }
+  .form-rota label { display: grid; gap: 6px; font-size: 14px; color: var(--tinta-2); }
+  .form-rota input, .form-rota select { width: 100%; color: var(--tinta); }
+  .form-rota .iata-in { font: 800 28px/1 var(--display); text-transform: uppercase; letter-spacing: 1px; }
+  .form-acoes { grid-column: 1 / -1; display: flex; gap: 10px; justify-content: flex-end; }
+
+  #msg {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    background: var(--tinta); color: var(--fundo); padding: 10px 16px; border-radius: 8px;
+    font-weight: 700; max-width: calc(100% - 32px); display: none; z-index: 10;
+  }
+
+  @media (max-width: 860px) {
+    .baixo { grid-template-columns: 1fr; gap: 44px; }
+    .radar { position: static; }
+  }
+  @media (max-width: 560px) {
+    .topo, main { padding-left: 16px; padding-right: 16px; }
+    .pass { grid-template-columns: 1fr; }
+    .canhoto { border-left: 0; border-top: 2px dashed var(--linha); padding: 18px 20px; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+    .canhoto::before, .canhoto::after { top: -12px; bottom: auto; }
+    .canhoto::before { left: -11px; }
+    .canhoto::after { left: auto; right: -11px; }
+    .canhoto .acoes { margin: 0; padding: 8px 0 0; width: 100%; display: flex; gap: 18px; }
+    .promo { grid-template-columns: 76px minmax(0, 1fr); gap: 12px; }
+    .cifra b { font-size: 34px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aviao { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="par-avion" aria-hidden="true"></div>
+
+<header class="topo">
+  <p class="marca">Milhas Monitor</p>
+  <div class="topo-acoes">
+    <button class="btn btn-linha oculto" id="btn-sair">Sair</button>
+  </div>
+</header>
+
+<section id="login" class="checkin" aria-labelledby="t-login">
+  <div class="pass">
+    <div>
+      <div class="pass-faixa"><span id="t-login">Check-in</span><span>Acesso pessoal</span></div>
+      <form id="form-login">
+        <label>Token de acesso
+          <input id="token" type="password" autocomplete="current-password" required>
+        </label>
+        <p>É o MILHAS_API_TOKEN do .env do milhas-monitor. Fica salvo só neste navegador.</p>
+        <button class="btn">Entrar</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<main id="app" class="oculto">
+  <section aria-labelledby="t-rotas">
+    <div class="rotas-cab">
+      <div>
+        <h1 id="t-rotas">Suas rotas</h1>
+        <p id="rotas-resumo"></p>
+      </div>
+      <div class="rotas-acoes">
+        <label class="chave"><input type="checkbox" id="todos"> Mostrar pausadas e vencidas</label>
+        <button class="btn" data-nova>Nova rota</button>
+      </div>
+    </div>
+    <div class="passes" id="passes"></div>
+  </section>
+
+  <div class="baixo">
+    <section aria-labelledby="t-promos">
+      <div class="promos-cab">
+        <h2 id="t-promos">Promoções</h2>
+        <div class="filtros">
+          <label class="sr" for="f-tipo">Tipo</label>
+          <select id="f-tipo">
+            <option value="">Todos os tipos</option>
+            <option value="transferencia">Transferências</option>
+            <option value="compra">Compra de pontos</option>
+            <option value="clube">Clubes</option>
+            <option value="cartao">Cartões</option>
+          </select>
+          <label class="sr" for="f-dias">Período</label>
+          <select id="f-dias">
+            <option value="1">Últimas 24h</option>
+            <option value="7" selected>Últimos 7 dias</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+          </select>
+        </div>
+      </div>
+      <ul class="promos" id="promos"></ul>
+    </section>
+
+    <aside class="radar" aria-labelledby="t-radar">
+      <h2 id="t-radar">Radar</h2>
+      <dl id="radar"></dl>
+      <div class="acoes">
+        <button class="btn" data-exec="rss">Coletar promoções agora</button>
+        <button class="btn btn-linha" data-exec="teste">Enviar teste ao Telegram</button>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<dialog id="dlg-rota" aria-labelledby="t-nova">
+  <div class="pass-faixa"><span id="t-nova">Nova rota</span><span>Os alertas chegam no Telegram</span></div>
+  <form class="form-rota" id="form-rota">
+    <label>Origem<input class="iata-in" name="origem" maxlength="3" minlength="3" placeholder="BSB" required autocomplete="off"></label>
+    <label>Destino<input class="iata-in" name="destino" maxlength="3" minlength="3" placeholder="LIS" required autocomplete="off"></label>
+    <label>Ida<input name="data_ida" type="date" required></label>
+    <label>Volta (opcional)<input name="data_volta" type="date"></label>
+    <label>Flexibilidade em dias<input name="flex_dias" type="number" min="0" max="15" value="0"></label>
+    <label>Cabine<select name="cabine">
+      <option value="economica">Econômica</option><option value="premium">Premium economy</option>
+      <option value="executiva">Executiva</option><option value="primeira">Primeira classe</option>
+    </select></label>
+    <label>Adultos<input name="adultos" type="number" min="1" max="9" value="1"></label>
+    <label>Pago até (R$)<input name="max_reais" type="number" min="1" step="1" inputmode="numeric"></label>
+    <label>Ou até (milhas)<input name="max_milhas" type="number" min="1" step="1000" inputmode="numeric"></label>
+    <label>Outros nomes do destino<input name="palavras" placeholder="lisboa, portugal"></label>
+    <div class="form-acoes">
+      <button type="button" class="btn btn-linha" id="cancelar-rota">Cancelar</button>
+      <button class="btn">Monitorar rota</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="msg" role="status" aria-live="polite"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const CIDADES = {
+  BSB: "Brasília", GRU: "São Paulo", CGH: "São Paulo", VCP: "Campinas", GIG: "Rio de Janeiro", SDU: "Rio de Janeiro",
+  CNF: "Belo Horizonte", SSA: "Salvador", REC: "Recife", FOR: "Fortaleza", NAT: "Natal", MCZ: "Maceió", JPA: "João Pessoa",
+  POA: "Porto Alegre", CWB: "Curitiba", FLN: "Florianópolis", BEL: "Belém", MAO: "Manaus", GYN: "Goiânia", CGB: "Cuiabá",
+  VIX: "Vitória", IGU: "Foz do Iguaçu", FEN: "Noronha", LIS: "Lisboa", OPO: "Porto", MAD: "Madri", BCN: "Barcelona",
+  CDG: "Paris", ORY: "Paris", FCO: "Roma", MXP: "Milão", LHR: "Londres", AMS: "Amsterdã", FRA: "Frankfurt", ZRH: "Zurique",
+  IST: "Istambul", DXB: "Dubai", DOH: "Doha", MIA: "Miami", MCO: "Orlando", JFK: "Nova York", EWR: "Nova York",
+  LAX: "Los Angeles", LAS: "Las Vegas", YYZ: "Toronto", MEX: "Cidade do México", CUN: "Cancún", PUJ: "Punta Cana",
+  EZE: "Buenos Aires", AEP: "Buenos Aires", SCL: "Santiago", MVD: "Montevidéu", LIM: "Lima", BOG: "Bogotá", PTY: "Panamá",
+  NRT: "Tóquio", HND: "Tóquio", JNB: "Joanesburgo", CPT: "Cidade do Cabo",
+};
+const CABINE = { economica: "Econômica", premium: "Premium economy", executiva: "Executiva", primeira: "Primeira classe" };
+const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const AVIAO = `<svg class="aviao" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" transform="rotate(90 12 12)"/></svg>`;
+
+const store = {
+  get() { try { return localStorage.getItem("milhas_token") || ""; } catch { return ""; } },
+  set(v) { try { v ? localStorage.setItem("milhas_token", v) : localStorage.removeItem("milhas_token"); } catch {} },
+};
+let TOKEN = store.get();
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const brl = (v, casas = 0) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: casas, maximumFractionDigits: casas });
+const dia = (iso) => { if (!iso) return ""; const [a, m, d] = iso.slice(0, 10).split("-"); return `${+d} ${MESES[m - 1]} ${a}`; };
+const instante = (iso) => {
+  if (!iso) return null;
+  return new Date(/[zZ]|[+-]\d\d:\d\d$/.test(iso) ? iso : iso.replace(" ", "T") + "Z");
+};
+const hora = (iso) => {
+  const d = instante(iso); if (!d) return "ainda não rodou";
+  const hoje = new Date().toDateString() === d.toDateString();
+  return (hoje ? "hoje, " : `${d.getDate()} ${MESES[d.getMonth()]}, `) + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+};
+const linkSeguro = (u) => /^https?:\/\//i.test(u || "") ? u : "#";
+
+function aviso(texto) {
+  const m = $("#msg"); m.textContent = texto; m.style.display = "block";
+  clearTimeout(aviso.t); aviso.t = setTimeout(() => (m.style.display = "none"), 4000);
+}
+
+async function api(metodo, caminho, corpo) {
+  const r = await fetch(caminho, {
+    method: metodo,
+    headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
+    body: corpo ? JSON.stringify(corpo) : undefined,
+  });
+  if (r.status === 401) { sair(); throw new Error("Token recusado. Confira o MILHAS_API_TOKEN e entre de novo."); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const d = j.detail;
+    throw new Error(Array.isArray(d) ? d.map((x) => x.msg.replace("Value error, ", "")).join("; ") : d || `Erro ${r.status}`);
+  }
+  return j;
+}
+
+/* Radar */
+async function carregarRadar() {
+  const s = await api("GET", "/status");
+  const rss = s.tarefas?.rss;
+  const feeds = Object.entries(s.feeds || {});
+  const falhas = feeds.filter(([, f]) => !f.ok).length;
+  $("#radar").innerHTML = `
+    <div><dt>Alertas no Telegram</dt>
+      <dd><span class="estado ${s.telegram_configurado ? "ok" : "erro"}">${s.telegram_configurado ? "Ligados" : "Faltam token e chat_id no .env"}</span></dd></div>
+    <div><dt>Preços das rotas</dt>
+      <dd><span class="estado ${s.busca_voos_ativa ? "ok" : "alerta"}">${s.busca_voos_ativa ? "Consultando a cada " + s.agenda.voos_horas + "h" : "Desligado, sem SERPAPI_KEY"}</span></dd></div>
+    <div><dt>Última coleta de promoções</dt>
+      <dd>${esc(hora(rss?.fim))}${rss?.erro ? ` <span class="erro">com erro</span>` : ""}</dd></div>
+    <div><dt>Promoções nas últimas 24h</dt><dd>${s.promocoes_24h} de ${s.posts} posts lidos</dd></div>
+    <div><dt>Blogs monitorados${falhas ? `, ${falhas} com falha` : ""}</dt>
+      <dd><ul class="feeds">${feeds.map(([n, f]) =>
+        `<li title="${esc(f.erro || "")}"><span class="estado ${f.ok ? "ok" : "erro"}">${esc(n)}</span></li>`).join("") || "<li>Aguardando a primeira coleta</li>"}</ul></dd></div>`;
+}
+
+/* Rotas */
+function cartao(t) {
+  const ativa = !!t.ativo;
+  const milhas = t.max_milhas ? `ou ${Number(t.max_milhas).toLocaleString("pt-BR")} milhas` : "";
+  return `
+  <article class="pass ${ativa ? "" : "pausada"}" aria-label="Rota ${esc(t.origem)} para ${esc(t.destino)}">
+    <div class="pass-corpo">
+      <div class="pass-faixa"><span>Rota #${t.id}</span><span>${ativa ? "Monitorando" : "Pausada"}</span></div>
+      <div class="pass-rota">
+        <div class="iata">${esc(t.origem)}<span class="cidade">${esc(CIDADES[t.origem] || "")}</span></div>
+        <div class="voo">${AVIAO}</div>
+        <div class="iata destino">${esc(t.destino)}<span class="cidade">${esc(CIDADES[t.destino] || "")}</span></div>
+      </div>
+      <dl class="pass-dados">
+        <div><dt>Ida</dt><dd>${dia(t.data_ida)}</dd></div>
+        <div><dt>Volta</dt><dd>${t.data_volta ? dia(t.data_volta) : "Só ida"}</dd></div>
+        <div><dt>Flexível</dt><dd>${t.flex_dias ? `± ${t.flex_dias} dias` : "Data exata"}</dd></div>
+        <div><dt>Cabine</dt><dd>${esc(CABINE[t.cabine] || t.cabine)}</dd></div>
+        <div><dt>Passageiros</dt><dd>${t.adultos} ${t.adultos > 1 ? "adultos" : "adulto"}</dd></div>
+      </dl>
+      <p class="pass-precos" id="precos-${t.id}"></p>
+    </div>
+    <div class="canhoto">
+      <span class="rot">Avise quando custar até</span>
+      ${t.max_reais ? `<span class="teto">${brl(t.max_reais)}</span>` : `<span class="teto vazio">Sem teto: aviso no menor preço já visto</span>`}
+      ${milhas ? `<span class="milhas">${milhas}</span>` : ""}
+      <div class="acoes">
+        <button class="btn-texto" data-precos="${t.id}">Ver preços</button>
+        <button class="btn-texto" data-toggle="${t.id}" data-ativo="${ativa ? 1 : 0}">${ativa ? "Pausar" : "Retomar"}</button>
+        <button class="btn-texto perigo" data-remover="${t.id}">Remover</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+async function carregarRotas() {
+  const lista = await api("GET", `/trechos${$("#todos").checked ? "?todos=true" : ""}`);
+  const ativas = lista.filter((t) => t.ativo).length;
+  $("#rotas-resumo").textContent = ativas
+    ? `${ativas} ${ativas > 1 ? "rotas monitoradas" : "rota monitorada"}. Quando o preço cair, o alerta chega no Telegram.`
+    : "Cadastre a viagem que você quer fazer e o alerta chega no Telegram quando o preço cair.";
+  $("#passes").innerHTML = lista.length ? lista.map(cartao).join("") :
+    `<button class="pass-novo" data-nova><b>Nova rota</b><span>Origem, destino, datas e quanto você topa pagar</span></button>`;
+}
+
+/* Promoções */
+function cifra(p) {
+  if (p.tipo === "transferencia") return p.bonus_pct ? [`${p.bonus_pct}%`, "de bônus"] : ["Vários", "programas"];
+  if (p.tipo === "compra") {
+    if (p.milheiro) return [brl(p.milheiro), "o milheiro"];
+    if (p.desconto_pct) return [`${p.desconto_pct}%`, "de desconto"];
+    return ["Compra", "ver preço"];
+  }
+  return [p.tipo === "clube" ? "Clube" : "Cartão", p.bonus_pct ? `${p.bonus_pct}% de bônus` : ""];
+}
+
+async function carregarPromos() {
+  const q = new URLSearchParams({ dias: $("#f-dias").value });
+  if ($("#f-tipo").value) q.set("tipo", $("#f-tipo").value);
+  const lista = await api("GET", `/promocoes?${q}`);
+  $("#promos").innerHTML = lista.length ? lista.map((p) => {
+    const [num, leg] = cifra(p);
+    let rota = p.destino || p.programas || "";
+    if (p.tipo === "transferencia" && p.destino) rota = p.origem ? `${p.origem} para ${p.destino}` : `Para ${p.destino}`;
+    return `<li class="promo t-${esc(p.tipo)}">
+      <div class="cifra ${/\d/.test(num) ? "" : "neutra"}"><b>${esc(num)}</b><small>${esc(leg)}</small></div>
+      <div>
+        ${rota ? `<div class="promo-rota">${esc(rota)}</div>` : ""}
+        <a href="${esc(linkSeguro(p.url))}" target="_blank" rel="noopener noreferrer">${esc(p.titulo)}</a>
+        <div class="promo-meta">
+          ${p.validade ? `<span class="validade">Vale até ${esc(p.validade)}</span>` : ""}
+          <span>${esc(p.fonte)}</span><span>${esc(hora(p.criado_em))}</span>
+        </div>
+      </div>
+    </li>`;
+  }).join("") : `<li class="vazio-msg">Nenhuma promoção nesse período. Amplie o período ou toque em “Coletar promoções agora”.</li>`;
+}
+
+async function tudo() {
+  try { await Promise.all([carregarRadar(), carregarRotas(), carregarPromos()]); }
+  catch (e) { aviso(e.message); }
+}
+
+function entrar() {
+  $("#login").classList.add("oculto"); $("#app").classList.remove("oculto"); $("#btn-sair").classList.remove("oculto");
+  tudo();
+}
+function sair() {
+  TOKEN = ""; store.set("");
+  $("#app").classList.add("oculto"); $("#btn-sair").classList.add("oculto"); $("#login").classList.remove("oculto");
+}
+
+$("#form-login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  TOKEN = $("#token").value.trim();
+  try { await api("GET", "/status"); store.set(TOKEN); $("#token").value = ""; entrar(); }
+  catch (err) { aviso(err.message); }
+});
+$("#btn-sair").addEventListener("click", sair);
+$("#todos").addEventListener("change", () => carregarRotas().catch((e) => aviso(e.message)));
+$("#f-tipo").addEventListener("change", () => carregarPromos().catch((e) => aviso(e.message)));
+$("#f-dias").addEventListener("change", () => carregarPromos().catch((e) => aviso(e.message)));
+
+const dlg = $("#dlg-rota");
+$("#cancelar-rota").addEventListener("click", () => dlg.close());
+
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  try {
+    if (b.hasAttribute("data-nova")) {
+      dlg.showModal(); dlg.querySelector("input").focus();
+    } else if (b.dataset.exec) {
+      b.disabled = true;
+      await api("POST", `/executar/${b.dataset.exec}`);
+      if (b.dataset.exec === "teste") aviso("Teste enviado ao Telegram");
+      else { aviso("Coleta iniciada. A lista atualiza em alguns segundos."); setTimeout(tudo, 15000); }
+    } else if (b.dataset.toggle) {
+      const retomar = b.dataset.ativo !== "1";
+      await api("PATCH", `/trechos/${b.dataset.toggle}`, { ativo: retomar });
+      aviso(retomar ? "Rota retomada" : "Rota pausada");
+      await Promise.all([carregarRotas(), carregarRadar()]);
+    } else if (b.dataset.remover) {
+      if (!confirm(`Remover a rota #${b.dataset.remover}? O histórico de preços dela também será apagado.`)) return;
+      await api("DELETE", `/trechos/${b.dataset.remover}`);
+      aviso("Rota removida");
+      await Promise.all([carregarRotas(), carregarRadar()]);
+    } else if (b.dataset.precos) {
+      const r = await api("GET", `/trechos/${b.dataset.precos}/precos?limite=4`);
+      $(`#precos-${b.dataset.precos}`).textContent = r.precos.length
+        ? `Menor preço já visto: ${brl(r.minimo_historico)}. Últimas cotações: ` +
+          r.precos.map((p) => `${brl(p.valor)} em ${dia(p.data_ida)}${p.cia ? " (" + p.cia + ")" : ""}`).join(", ") + "."
+        : "Ainda sem cotações. A busca de preços precisa da SERPAPI_KEY no .env.";
+    }
+  } catch (err) { aviso(err.message); }
+  finally { if (b.dataset.exec) b.disabled = false; }
+});
+
+$("#form-rota").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  const corpo = { origem: f.origem, destino: f.destino, data_ida: f.data_ida, cabine: f.cabine,
+                  flex_dias: Number(f.flex_dias || 0), adultos: Number(f.adultos || 1) };
+  if (f.data_volta) corpo.data_volta = f.data_volta;
+  if (f.max_reais) corpo.max_reais = Number(f.max_reais);
+  if (f.max_milhas) corpo.max_milhas = Number(f.max_milhas);
+  if (f.palavras) corpo.palavras = f.palavras;
+  try {
+    const t = await api("POST", "/trechos", corpo);
+    e.target.reset(); dlg.close();
+    aviso(`Rota ${t.origem} para ${t.destino} monitorada`);
+    await Promise.all([carregarRotas(), carregarRadar()]);
+  } catch (err) { aviso(err.message); }
+});
+
+if (TOKEN) api("GET", "/status").then(entrar).catch(() => {});
+</script>
+</body>
+</html>

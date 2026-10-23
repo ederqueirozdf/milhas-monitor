@@ -13,6 +13,13 @@ log = logging.getLogger(__name__)
 extrator = Extrator(CONFIG["programas"])
 _travas: dict[str, threading.Lock] = defaultdict(threading.Lock)
 
+# Última execução de cada tarefa e situação de cada feed (exposto em /status).
+ESTADO: dict = {"tarefas": {}, "feeds": {}}
+
+
+def _agora() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
 
 def exclusivo(fn):
     """Evita que a mesma tarefa rode duas vezes ao mesmo tempo (agenda + chamada manual)."""
@@ -23,11 +30,15 @@ def exclusivo(fn):
         if not trava.acquire(blocking=False):
             log.info("%s já está em execução; ignorando", fn.__name__)
             return
+        nome = fn.__name__.removeprefix("run_")
+        ESTADO["tarefas"][nome] = {"inicio": _agora(), "fim": None, "erro": None}
         try:
             return fn(*args, **kwargs)
-        except Exception:
+        except Exception as exc:
             log.exception("falha em %s", fn.__name__)
+            ESTADO["tarefas"][nome]["erro"] = str(exc)[:300]
         finally:
+            ESTADO["tarefas"][nome]["fim"] = _agora()
             trava.release()
 
     return wrapper
@@ -50,6 +61,7 @@ def run_rss():
             posts = rss.buscar(feed["url"])
         except Exception as exc:
             log.warning("feed %s falhou: %s", feed["nome"], exc)
+            ESTADO["feeds"][feed["nome"]] = {"em": _agora(), "ok": False, "erro": str(exc)[:200]}
             continue
         novos = 0
         for post in posts:
@@ -65,6 +77,7 @@ def run_rss():
                 continue
             _processar_post(post, feed["nome"], alertar, trechos)
         log.info("feed %s: %d posts novos", feed["nome"], novos)
+        ESTADO["feeds"][feed["nome"]] = {"em": _agora(), "ok": True, "posts_novos": novos}
 
 
 def _processar_post(post: rss.Post, fonte: str, alertar: set[str], trechos: list[dict]):

@@ -12,7 +12,7 @@ Serviço que roda 24/7 ao lado do OpenClaw:
 - **Resumo diário** às 08:00.
 
 ```
-OpenClaw (chat Telegram) ──skill milhas──► milhas:8000 (API + agendador + SQLite) ──Bot API──► Telegram
+OpenClaw (chat Telegram) ──skill milhas──► milhas:8000 (na rede do OpenClaw) (API + agendador + SQLite) ──Bot API──► Telegram
 ```
 
 ## Deploy na VPS
@@ -25,9 +25,13 @@ mkdir -p /docker/milhas-monitor && cd /docker/milhas-monitor
 cp .env.example .env
 openssl rand -hex 32          # cole em MILHAS_API_TOKEN
 nano .env                     # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SERPAPI_KEY (opcional)
-docker compose up -d --build
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --build
 docker compose logs -f milhas # deve aparecer "feed ...: N posts novos"
 ```
+
+Com o override do Traefik (mesmo padrão do `gestao-fdp`: Traefik em host mode, resolver
+`letsencrypt`, sem rede externa), a API fica em `https://milhas-monitor.srv1767526.hstgr.cloud`.
+Sem o override (`docker compose up -d --build`), fica só interna e em `127.0.0.1:8090`.
 
 **Seu `TELEGRAM_CHAT_ID`:** numa conversa privada com o bot, é o seu user id do Telegram. Ele já
 deve estar no `allowFrom` do canal Telegram do seu `openclaw.json`. Também dá para pegar com o
@@ -42,30 +46,37 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" localhost:8090/executar/teste
 
 ### 2. Conectar o OpenClaw
 
-No `docker-compose.yml` do seu OpenClaw, adicione no serviço do gateway:
+O compose do OpenClaw (template genérico da Hostinger) **não muda**. O milhas-monitor entra
+na rede default do OpenClaw (`OPENCLAW_NETWORK` no `.env`, veja com
+`docker network ls | grep openclaw`). Por isso, **suba o OpenClaw antes**.
 
-```yaml
-    environment:
-      MILHAS_API_URL: http://milhas:8000
-      MILHAS_API_TOKEN: ${MILHAS_API_TOKEN}   # mesmo valor do .env do milhas-monitor
-    networks:
-      - default
-      - milhas_net
+No `.env` do OpenClaw (o compose já faz `env_file: .env`), acrescente:
 
-networks:
-  milhas_net:
-    external: true
+```env
+MILHAS_API_URL=http://milhas:8000
+MILHAS_API_TOKEN=<mesmo valor do .env do milhas-monitor>
 ```
 
-Copie o skill para o workspace do agente. Ajuste o caminho ao seu volume: no seu padrão,
-`/docker/<openclaw>/data` corresponde a `/home/node/.openclaw`. Se o agente tem workspace
-próprio, como `workspace-series-trail`, use a pasta `skills/` dele.
+Instale o workspace do agente (personalidade, regras, memória inicial e skills). O
+script faz backup do que já existir e não sobrescreve memória personalizada:
 
 ```bash
-cp -r openclaw-skill/milhas /docker/<openclaw>/data/workspace/skills/
-chown -R 1000:1000 /docker/<openclaw>/data/workspace/skills/milhas   # usuário node
-cd /docker/<openclaw> && docker compose up -d
+bash /docker/milhas-monitor/openclaw-workspace/instalar.sh /docker/openclaw-milhas/workspace
+cd /docker/openclaw-milhas && docker compose up -d
 ```
+
+### Estrutura do workspace (`openclaw-workspace/`)
+
+| Arquivo | Papel |
+|---|---|
+| `AGENTS.md` | Missão, divisão de trabalho com o serviço, regras, memória, automações |
+| `SOUL.md` | Personalidade e limites ("número antes de adjetivo") |
+| `IDENTITY.md` | Nome (Rota), emoji ✈️, vibe |
+| `USER.md` | Preferências do usuário como diretivas datadas |
+| `MEMORY.md` | Arquitetura e decisões duráveis (só sessão principal) |
+| `BOOTSTRAP.md` | Onboarding da 1ª conversa; o agente apaga ao concluir |
+| `skills/milhas/` | Trechos, promoções, status e execução de tarefas (via API) |
+| `skills/milhas-valor/` | Calculadora: custo do milheiro, valor de resgate, milhas vs dinheiro |
 
 Teste no Telegram: *"monitora Brasília → Lisboa, ida 10/05/2027 volta 25/05, executiva, até R$ 6 mil"*.
 
