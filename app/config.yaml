@@ -1,0 +1,121 @@
+# Configuração do milhas-monitor.
+# Editou? Aplique com: docker compose restart milhas
+
+timezone: America/Sao_Paulo
+
+agenda:
+  rss_minutos: 30          # coleta dos blogs/agregadores
+  voos_horas: 12           # busca de preços dos trechos (consome cota da SerpAPI)
+  resumo_diario: "08:00"   # resumo no Telegram (HH:MM)
+
+# Posts publicados há mais que isso são só registrados, sem alerta
+# (evita uma enxurrada de mensagens na primeira execução).
+janela_horas: 48
+
+# Tipos de promoção que geram alerta imediato. Sem filtro de % mínimo.
+alertar_tipos: [transferencia, compra, clube, cartao]
+
+feeds:
+  - nome: Passageiro de Primeira
+    url: https://passageirodeprimeira.com/feed/
+  - nome: Melhores Destinos
+    url: https://www.melhoresdestinos.com.br/feed
+  - nome: Pontos pra Voar
+    url: https://pontospravoar.com/feed/
+  - nome: Mestre das Milhas
+    url: https://www.mestredasmilhas.com/feed/
+
+# tipo: banco (origem de transferência) | cia (destino)
+# apelidos: minúsculos e sem acento; casam por palavra inteira.
+programas:
+  - {nome: Livelo, tipo: banco, apelidos: [livelo]}
+  - {nome: Esfera, tipo: banco, apelidos: [esfera]}
+  - {nome: Átomos C6, tipo: banco, apelidos: [atomos, c6 bank, c6]}
+  - {nome: Itaú, tipo: banco, apelidos: [itau, iupp, sempre presente]}
+  - {nome: Inter Loop, tipo: banco, apelidos: [inter loop]}
+  - {nome: Bradesco, tipo: banco, apelidos: [bradesco]}
+  - {nome: Santander, tipo: banco, apelidos: [santander]}
+  - {nome: Banco do Brasil, tipo: banco, apelidos: [banco do brasil, bb empresas, ourocard, bb]}
+  - {nome: Caixa, tipo: banco, apelidos: [caixa]}
+  - {nome: XP, tipo: banco, apelidos: [xp investimentos, cartao xp]}
+  - {nome: Nubank, tipo: banco, apelidos: [nubank, nu ultravioleta, ultravioleta]}
+  - {nome: Smiles, tipo: cia, apelidos: [smiles]}
+  - {nome: LATAM Pass, tipo: cia, apelidos: [latam pass, latampass, latam]}
+  - {nome: Azul Fidelidade, tipo: cia, apelidos: [azul fidelidade, tudoazul, tudo azul, azul]}
+  - {nome: TAP Miles&Go, tipo: cia, apelidos: [miles&go, miles and go, milesgo, tap]}
+  - {nome: Iberia Plus, tipo: cia, apelidos: [iberia plus, iberia]}
+  - {nome: British Airways Club, tipo: cia, apelidos: [british airways, ba club, avios]}
+  - {nome: Qatar Privilege Club, tipo: cia, apelidos: [privilege club, qatar]}
+  - {nome: Flying Blue, tipo: cia, apelidos: [flying blue]}
+  - {nome: AAdvantage, tipo: cia, apelidos: [aadvantage, american airlines]}
+  - {nome: Aeroplan, tipo: cia, apelidos: [aeroplan]}
+  - {nome: ConnectMiles, tipo: cia, apelidos: [connectmiles, copa]}
+  - {nome: Accor ALL, tipo: cia, apelidos: [accor, all accor]}
+
+voos:
+  max_buscas_por_trecho: 2   # datas consultadas por execução (data exata + sorteio na flex)
+  queda_minima_pct: 5        # só re-alerta se cair X% abaixo do último alerta
+  amostras_historico: 4      # mínimo de coletas para alertar "menor preço já visto"
+
+# Nomes usados para casar posts de blog ("Passagens para Lisboa...") com seus trechos.
+# Faltou um aeroporto? Adicione aqui ou use o campo "palavras" do trecho.
+cidades:
+  BSB: [brasilia]
+  GRU: [sao paulo, guarulhos]
+  CGH: [sao paulo, congonhas]
+  VCP: [campinas, viracopos]
+  GIG: [rio de janeiro, galeao]
+  SDU: [rio de janeiro, santos dumont]
+  CNF: [belo horizonte, confins]
+  SSA: [salvador]
+  REC: [recife]
+  FOR: [fortaleza]
+  NAT: [natal]
+  MCZ: [maceio]
+  JPA: [joao pessoa]
+  BEL: [belem]
+  MAO: [manaus]
+  POA: [porto alegre]
+  CWB: [curitiba]
+  FLN: [florianopolis]
+  GYN: [goiania]
+  CGB: [cuiaba]
+  VIX: [vitoria]
+  IGU: [foz do iguacu]
+  FEN: [fernando de noronha, noronha]
+  LIS: [lisboa, portugal]
+  OPO: [porto, portugal]
+  MAD: [madri, madrid, espanha]
+  BCN: [barcelona]
+  CDG: [paris]
+  ORY: [paris]
+  FCO: [roma]
+  MXP: [milao]
+  LHR: [londres]
+  AMS: [amsterda, amsterdam]
+  FRA: [frankfurt]
+  ZRH: [zurique]
+  IST: [istambul]
+  DXB: [dubai]
+  DOH: [doha]
+  MIA: [miami]
+  MCO: [orlando]
+  JFK: [nova york, nova iorque]
+  EWR: [nova york, nova iorque]
+  LAX: [los angeles]
+  LAS: [las vegas]
+  YYZ: [toronto]
+  MEX: [cidade do mexico]
+  CUN: [cancun]
+  PUJ: [punta cana]
+  EZE: [buenos aires]
+  AEP: [buenos aires]
+  SCL: [santiago]
+  MVD: [montevideu]
+  LIM: [lima]
+  BOG: [bogota]
+  PTY: [panama]
+  NRT: [toquio, japao]
+  HND: [toquio, japao]
+  JNB: [joanesburgo]
+  CPT: [cidade do cabo]

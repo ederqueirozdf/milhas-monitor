@@ -1,0 +1,46 @@
+# milhas-monitor — coleta promoções de milhas e preços de trechos, alerta no Telegram.
+#
+# Uso:
+#   cp .env.example .env   # preencha os tokens
+#   docker compose up -d --build
+#
+# O OpenClaw acessa a API em http://milhas:8000 pela rede `milhas_net`
+# (adicione essa rede ao serviço do OpenClaw — ver README).
+
+services:
+  milhas:
+    build:
+      context: ./app
+      dockerfile: Containerfile
+    container_name: milhas
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - milhas_data:/data
+      - ./app/config.yaml:/opt/app-root/src/config.yaml:ro
+    # Só localhost da VPS, para depurar com curl. Nada exposto para a internet.
+    ports:
+      - "127.0.0.1:${MILHAS_HTTP_PORT:-8090}:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks: [milhas_net]
+
+volumes:
+  milhas_data:
+
+networks:
+  milhas_net:
+    name: milhas_net
+    driver: bridge
