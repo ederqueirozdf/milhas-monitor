@@ -1,0 +1,24 @@
+# Override Traefik Hostinger SEM rede externa (igual gestao-fdp / OpenClaw).
+#
+# Nesta VPS o Traefik roda em network_mode: host + docker provider.
+# NÃO existe rede externa `proxy`/`traefik` — o Traefik alcança o container
+# pela rede indicada em traefik.docker.network (a rede do OpenClaw de milhas).
+#
+# No .env:
+#   COMPOSE_PROJECT_NAME=milhas-monitor
+#   TRAEFIK_HOST=srv1767526.hstgr.cloud
+#
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --build
+#
+# URL: https://${COMPOSE_PROJECT_NAME}.${TRAEFIK_HOST}  (tudo exceto /health exige o token)
+
+services:
+  milhas:
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${OPENCLAW_NETWORK:-openclaw-milhas_default}
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-milhas-monitor}.rule=Host(`${COMPOSE_PROJECT_NAME:-milhas-monitor}.${TRAEFIK_HOST:-srv1767526.hstgr.cloud}`)
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-milhas-monitor}.entrypoints=websecure
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-milhas-monitor}.tls.certresolver=letsencrypt
+      - traefik.http.services.${COMPOSE_PROJECT_NAME:-milhas-monitor}.loadbalancer.server.port=8000

@@ -1,0 +1,238 @@
+{
+  "gateway": {
+    "mode": "local",
+    "bind": "lan",
+    "trustedProxies": [
+      "127.0.0.1/32",
+      "::1/128",
+      "10.0.0.0/8",
+      "172.16.0.0/12",
+      "192.168.0.0/16"
+    ],
+    "auth": {
+      "mode": "token",
+      "token": "<REDACTED>"
+    },
+    "controlUi": {
+      "allowedOrigins": [
+        "https://openclaw-milhas.srv1767526.hstgr.cloud"
+      ]
+    }
+  },
+  "env": {
+    "vars": "<REDACTED>"
+  },
+  "plugins": {
+    "entries": {
+      "deepseek": {
+        "enabled": true
+      }
+    },
+    "enabled": true,
+    "allow": [
+      "deepseek",
+      "telegram"
+    ]
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "<REDACTED>",
+      "groups": {
+        "*": {
+          "requireMention": true
+        }
+      }
+    }
+  },
+  "models": {
+    "providers": {
+      "deepseek": {
+        "baseUrl": "https://api.deepseek.com",
+        "api": "openai-completions",
+        "models": []
+      }
+    },
+    "mode": "merge"
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "deepseek/deepseek-flash"
+      },
+      "models": {
+        "deepseek/deepseek-v4-pro": {
+          "alias": "DeepSeek"
+        },
+        "deepseek/deepseek-flash": {
+          "alias": "Flash"
+        }
+      }
+    },
+    "entries": {
+      "main": {}
+    }
+  },
+  "meta": {
+    "migrations": {
+      "modelPolicyAllowlist": true,
+      "utilityModelSeparation": true
+    },
+    "lastTouchedVersion": "2026.9.9"
+  },
+  "skills": {
+    "entries": {
+      "1password": {
+        "enabled": false
+      },
+      "blogwatcher": {
+        "enabled": false
+      },
+      "blucli": {
+        "enabled": false
+      },
+      "camsnap": {
+        "enabled": false
+      },
+      "coding-agent": {
+        "enabled": false
+      },
+      "eightctl": {
+        "enabled": false
+      },
+      "gemini": {
+        "enabled": false
+      },
+      "gh-issues": {
+        "enabled": false
+      },
+      "gifgrep": {
+        "enabled": false
+      },
+      "github": {
+        "enabled": false
+      },
+      "gog": {
+        "enabled": false
+      },
+      "goplaces": {
+        "enabled": false
+      },
+      "himalaya": {
+        "enabled": false
+      },
+      "mcporter": {
+        "enabled": false
+      },
+      "model-usage": {
+        "enabled": false
+      },
+      "nano-pdf": {
+        "enabled": false
+      },
+      "obsidian": {
+        "enabled": false
+      },
+      "openai-whisper": {
+        "enabled": false
+      },
+      "openhue": {
+        "enabled": false
+      },
+      "oracle": {
+        "enabled": false
+      },
+      "ordercli": {
+        "enabled": false
+      },
+      "sag": {
+        "enabled": false
+      },
+      "sherpa-onnx-tts": {
+        "enabled": false
+      },
+      "songsee": {
+        "enabled": false
+      },
+      "sonoscli": {
+        "enabled": false
+      },
+      "spotify-player": {
+        "enabled": false
+      },
+      "summarize": {
+        "enabled": false
+      },
+      "tmux": {
+        "enabled": false
+      },
+      "trello": {
+        "enabled": false
+      },
+      "xurl": {
+        "enabled": false
+      }
+    }
+  },
+  "wizard": {
+    "lastRunAt": "2026-10-23T03:16:43.136Z",
+    "lastRunVersion": "2026.9.9",
+    "lastRunCommand": "configure",
+    "lastRunMode": "local"
+  },
+  "auth": {
+    "profiles": {
+      "deepseek:default": {
+        "provider": "deepseek",
+        "mode": "api_key"
+      }
+    }
+  },
+  "commands": {
+    "ownerAllowFrom": [
+      "telegram:175699448"
+    ]
+  },
+  "tts": {
+    "auto": "inbound",
+    "provider": "elevenlabs",
+    "persona": "comissaria",
+    "personas": {
+      "comissaria": {
+        "label": "Comissária",
+        "description": "Comissária de bordo brasileira em atendimento no aeroporto: cordial, calma, sorridente e precisa.",
+        "provider": "elevenlabs",
+        "providers": {
+          "elevenlabs": {
+            "speakerVoiceId": "xPnmQf6Ow3GGYWWURFPi",
+            "modelId": "eleven_multilingual_v2",
+            "languageCode": "pt",
+            "voiceSettings": {
+              "stability": 0.6,
+              "similarityBoost": 0.8,
+              "style": 0.3,
+              "useSpeakerBoost": true,
+              "speed": 0.95
+            }
+          }
+        }
+      }
+    }
+  },
+  "tools": {
+    "media": {
+      "models": [
+        {
+          "provider": "elevenlabs",
+          "model": "scribe_v2",
+          "capabilities": [
+            "audio"
+          ]
+        }
+      ],
+      "audio": {
+        "enabled": true
+      }
+    }
+  }
+}
