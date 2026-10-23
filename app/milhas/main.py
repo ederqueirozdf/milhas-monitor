@@ -77,11 +77,22 @@ def autenticar(authorization: str = Header(default="")):
 Cabine = Literal["economica", "premium", "executiva", "primeira"]
 
 
+RE_CIAS = r"^[A-Z0-9]{2}(,[A-Z0-9]{2})*$"
+
+
 class TrechoBase(BaseModel):
     @field_validator("origem", "destino", mode="before", check_fields=False)
     @classmethod
     def maiusculo(cls, v):
         return v.upper().strip() if isinstance(v, str) else v
+
+    @field_validator("cias", mode="before", check_fields=False)
+    @classmethod
+    def normalizar_cias(cls, v):
+        if isinstance(v, str):
+            v = ",".join(c.strip().upper() for c in v.split(",") if c.strip())
+            return v or None
+        return v
 
 
 class TrechoIn(TrechoBase):
@@ -94,6 +105,7 @@ class TrechoIn(TrechoBase):
     adultos: int = Field(1, ge=1, le=9)
     max_reais: float | None = Field(None, gt=0)
     max_milhas: int | None = Field(None, gt=0)
+    cias: str | None = Field(None, pattern=RE_CIAS)
     palavras: str | None = None
     observacao: str | None = None
 
@@ -116,6 +128,7 @@ class TrechoPatch(TrechoBase):
     adultos: int | None = Field(None, ge=1, le=9)
     max_reais: float | None = Field(None, gt=0)
     max_milhas: int | None = Field(None, gt=0)
+    cias: str | None = Field(None, pattern=RE_CIAS)
     palavras: str | None = None
     observacao: str | None = None
     ativo: bool | None = None
@@ -238,6 +251,88 @@ def listar_promocoes(dias: int = 7, tipo: str | None = None, programa: str | Non
         params += [f"%{programa}%"] * 3
     with db.tx() as c:
         return [dict(r) for r in c.execute(sql + " ORDER BY criado_em DESC LIMIT 100", params).fetchall()]
+
+
+@app.post("/pesquisar", dependencies=[Depends(autenticar)])
+def pesquisar(t: TrechoIn):
+    """Busca avulsa (consome 1 busca da SerpAPI); não grava rota nem cotação."""
+    if not flights.SERPAPI_KEY:
+        raise HTTPException(409, "Busca de preços desligada: falta SERPAPI_KEY no .env do milhas-monitor")
+    try:
+        return flights.pesquisar(t.model_dump(), t.data_ida, t.data_volta)
+    except Exception as exc:
+        raise HTTPException(502, f"Falha na busca: {flights.erro_seguro(exc)}")
+
+
+@app.get("/oportunidades", dependencies=[Depends(autenticar)])
+def oportunidades(dias: int = 3):
+    """Melhor cotação recente de cada rota ativa, com o motivo de ser (ou não) uma oportunidade."""
+    amostras = CONFIG.get("voos", {}).get("amostras_historico", 4)
+    with db.tx() as c:
+        rows = c.execute(
+            """SELECT t.*, p.valor, p.data_ida AS cot_ida, p.data_volta AS cot_volta, p.cia, p.link,
+                      p.coletado_em,
+                      (SELECT MIN(valor) FROM precos WHERE trecho_id = t.id) AS min_hist,
+                      (SELECT AVG(valor) FROM precos WHERE trecho_id = t.id) AS media,
+                      (SELECT COUNT(*) FROM precos WHERE trecho_id = t.id) AS amostras
+               FROM trechos t
+               JOIN precos p ON p.id = (SELECT id FROM precos WHERE trecho_id = t.id
+                                        AND coletado_em >= datetime('now', ?) ORDER BY valor LIMIT 1)
+               WHERE t.ativo = 1 AND t.data_ida >= date('now')""",
+            (f"-{dias} days",),
+        ).fetchall()
+        alertas_posts = c.execute(
+            "SELECT chave, enviado_em FROM alertas WHERE chave LIKE 'post|%' AND enviado_em >= datetime('now', '-30 days')"
+        ).fetchall()
+        posts = []
+        for a in alertas_posts:
+            _, tid, url = a["chave"].split("|", 2)
+            p = c.execute("SELECT titulo, fonte FROM posts WHERE url = ?", (url,)).fetchone()
+            t = c.execute("SELECT origem, destino FROM trechos WHERE id = ?", (tid,)).fetchone()
+            if p and t:
+                posts.append({"trecho_id": int(tid), "rota": f"{t['origem']}→{t['destino']}", "url": url,
+                              "titulo": p["titulo"], "fonte": p["fonte"], "em": a["enviado_em"]})
+
+    voos = []
+    for r in rows:
+        d = dict(r)
+        motivos = []
+        if d["max_reais"] and d["valor"] <= d["max_reais"]:
+            motivos.append("abaixo do seu teto")
+        if d["amostras"] >= amostras and d["valor"] <= d["min_hist"]:
+            motivos.append("menor preço já visto")
+        abaixo = (d["media"] - d["valor"]) / d["media"] * 100 if d["media"] else 0
+        if d["amostras"] >= amostras and abaixo >= 10:
+            motivos.append(f"{abaixo:.0f}% abaixo da média")
+        d.update(motivos=motivos, oportunidade=bool(motivos), pct_abaixo_media=round(abaixo, 1))
+        voos.append(d)
+    voos.sort(key=lambda v: (not v["oportunidade"], -v["pct_abaixo_media"]))
+    posts.sort(key=lambda p: p["em"], reverse=True)
+    return {"voos": voos, "posts": posts}
+
+
+@app.get("/metricas", dependencies=[Depends(autenticar)])
+def metricas(dias: int = 90):
+    """Contagens por tipo (7 dias), milheiro observado em promoções de compra e bônus de transferência."""
+    janela = f"-{dias} days"
+    with db.tx() as c:
+        por_tipo = {r["tipo"]: r["n"] for r in c.execute(
+            "SELECT tipo, COUNT(*) AS n FROM promocoes WHERE criado_em >= datetime('now', '-7 days') GROUP BY tipo")}
+        milheiro = [dict(r) for r in c.execute(
+            """SELECT destino AS programa, COUNT(*) AS promocoes, ROUND(AVG(milheiro), 2) AS media, MIN(milheiro) AS menor
+               FROM promocoes WHERE tipo = 'compra' AND milheiro IS NOT NULL AND destino IS NOT NULL
+                 AND criado_em >= datetime('now', ?) GROUP BY destino ORDER BY media""", (janela,))]
+        bonus = [dict(r) for r in c.execute(
+            """SELECT destino AS programa, COUNT(*) AS promocoes, ROUND(AVG(bonus_pct)) AS media, MAX(bonus_pct) AS maior
+               FROM promocoes WHERE tipo = 'transferencia' AND bonus_pct IS NOT NULL AND destino IS NOT NULL
+                 AND criado_em >= datetime('now', ?) GROUP BY destino ORDER BY media DESC""", (janela,))]
+    return {
+        "promocoes_7d": por_tipo,
+        "milheiro_observado": milheiro,
+        "bonus_transferencia": bonus,
+        "milheiro_alvo": CONFIG.get("milheiro_alvo", {}),
+        "dias": dias,
+    }
 
 
 @app.post("/executar/{tarefa}", status_code=202, dependencies=[Depends(autenticar)])

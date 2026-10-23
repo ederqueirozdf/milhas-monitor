@@ -11,6 +11,7 @@ const AJUDA = `Uso:
   trechos adicionar --origem BSB --destino LIS --ida 2027-05-10 [--volta 2027-05-25]
                     [--flex 3] [--cabine economica|premium|executiva|primeira] [--adultos 2]
                     [--max-reais 6000] [--max-milhas 150000] [--palavras "lisboa,portugal"] [--obs "texto"]
+                    [--cias LA,AD,G3]
   trechos editar ID [mesmas opções de adicionar]
   trechos pausar ID | ativar ID | remover ID
   trechos precos ID
@@ -21,7 +22,7 @@ const CAMPOS = {
   origem: ["origem", String], destino: ["destino", String], ida: ["data_ida", String],
   volta: ["data_volta", String], flex: ["flex_dias", Number], cabine: ["cabine", String],
   adultos: ["adultos", Number], "max-reais": ["max_reais", Number], "max-milhas": ["max_milhas", Number],
-  palavras: ["palavras", String], obs: ["observacao", String],
+  palavras: ["palavras", String], obs: ["observacao", String], cias: ["cias", String],
 };
 
 function opcoes(args) {

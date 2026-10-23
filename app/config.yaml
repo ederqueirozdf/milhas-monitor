@@ -52,6 +52,15 @@ programas:
   - {nome: ConnectMiles, tipo: cia, apelidos: [connectmiles, copa]}
   - {nome: Accor ALL, tipo: cia, apelidos: [accor, all accor]}
 
+# Milheiro que vale a pena (R$ por 1.000 milhas) — referência de partida, ajuste ao seu gosto.
+# O painel compara com o milheiro observado nas promoções de compra coletadas.
+milheiro_alvo:
+  Smiles: 17
+  LATAM Pass: 25
+  Azul Fidelidade: 17
+  TAP Miles&Go: 30
+  Iberia Plus: 40
+
 voos:
   max_buscas_por_trecho: 2   # datas consultadas por execução (data exata + sorteio na flex)
   queda_minima_pct: 5        # só re-alerta se cair X% abaixo do último alerta
