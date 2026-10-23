@@ -2,7 +2,7 @@ import logging
 import os
 import secrets
 from contextlib import asynccontextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -17,6 +17,8 @@ from . import db, flights, jobs, notify
 from .config import CONFIG
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+# O httpx registra a URL de cada requisição em INFO, e as URLs da SerpAPI e do Telegram contêm segredos.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 API_TOKEN = os.environ.get("MILHAS_API_TOKEN", "")
 TAREFAS = {
@@ -28,12 +30,24 @@ TAREFAS = {
 }
 
 
+def _proxima_busca_voos(tz: ZoneInfo, horas: int) -> datetime:
+    """Retoma o ciclo a partir da última cotação, para um restart não atrasar (nem repetir) a busca."""
+    agora = datetime.now(tz)
+    with db.tx() as c:
+        ultima = c.execute("SELECT MAX(coletado_em) FROM precos").fetchone()[0]
+    if not ultima:
+        return agora + timedelta(minutes=1)
+    proxima = datetime.fromisoformat(ultima).replace(tzinfo=timezone.utc) + timedelta(hours=horas)
+    return max(proxima, agora + timedelta(minutes=1))
+
+
 def agendador() -> BackgroundScheduler:
     tz = ZoneInfo(CONFIG["timezone"])
     ag = CONFIG["agenda"]
     s = BackgroundScheduler(timezone=tz, job_defaults={"coalesce": True, "max_instances": 1, "misfire_grace_time": 900})
     s.add_job(jobs.run_rss, "interval", minutes=ag["rss_minutos"], id="rss", next_run_time=datetime.now(tz))
-    s.add_job(jobs.run_voos, "interval", hours=ag["voos_horas"], id="voos")
+    s.add_job(jobs.run_voos, "interval", hours=ag["voos_horas"], id="voos",
+              next_run_time=_proxima_busca_voos(tz, ag["voos_horas"]))
     hora, minuto = (int(x) for x in ag["resumo_diario"].split(":"))
     s.add_job(jobs.run_resumo, CronTrigger(hour=hora, minute=minuto, timezone=tz), id="resumo")
     s.add_job(jobs.run_limpeza, CronTrigger(hour=3, minute=30, timezone=tz), id="limpeza")
@@ -158,12 +172,27 @@ def listar_trechos(todos: bool = False):
 
 
 @app.post("/trechos", status_code=201, dependencies=[Depends(autenticar)])
-def criar_trecho(t: TrechoIn):
+def criar_trecho(t: TrechoIn, bg: BackgroundTasks):
     dados = {k: _sql_valor(v) for k, v in t.model_dump().items()}
     colunas = ", ".join(dados)
     with db.tx() as c:
         cur = c.execute(f"INSERT INTO trechos ({colunas}) VALUES ({', '.join('?' * len(dados))})", tuple(dados.values()))
-        return _trecho(c, cur.lastrowid)
+        novo = _trecho(c, cur.lastrowid)
+    if flights.SERPAPI_KEY:
+        bg.add_task(jobs.run_voos, novo["id"])
+    return novo
+
+
+@app.post("/trechos/{trecho_id}/buscar", status_code=202, dependencies=[Depends(autenticar)])
+def buscar_precos(trecho_id: int, bg: BackgroundTasks):
+    if not flights.SERPAPI_KEY:
+        raise HTTPException(409, "Busca de preços desligada: falta SERPAPI_KEY no .env do milhas-monitor")
+    with db.tx() as c:
+        t = _trecho(c, trecho_id)
+    if not t["ativo"]:
+        raise HTTPException(409, "Rota pausada: retome antes de buscar preços")
+    bg.add_task(jobs.run_voos, trecho_id)
+    return {"agendada": trecho_id}
 
 
 @app.patch("/trechos/{trecho_id}", dependencies=[Depends(autenticar)])

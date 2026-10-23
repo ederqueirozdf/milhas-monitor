@@ -107,12 +107,14 @@ def _processar_post(post: rss.Post, fonte: str, alertar: set[str], trechos: list
 
 
 @exclusivo
-def run_voos():
+def run_voos(trecho_id: int | None = None):
     if not flights.SERPAPI_KEY:
         log.info("SERPAPI_KEY não configurada; busca de voos desativada")
         return
     cfg = CONFIG.get("voos", {})
-    for t in db.trechos_ativos():
+    trechos = [t for t in db.trechos_ativos() if trecho_id is None or t["id"] == trecho_id]
+    log.info("buscando preços de %d trecho(s)", len(trechos))
+    for t in trechos:
         with db.tx() as c:
             hist = c.execute(
                 "SELECT MIN(valor) AS minimo, COUNT(*) AS n FROM precos WHERE trecho_id = ?", (t["id"],)
@@ -122,7 +124,7 @@ def run_voos():
             try:
                 cot = flights.buscar(t, ida, volta)
             except Exception as exc:
-                log.warning("busca trecho #%s %s falhou: %s", t["id"], ida, exc)
+                log.warning("busca trecho #%s %s falhou: %s", t["id"], ida, flights.erro_seguro(exc))
                 continue
             if cot:
                 cotacoes.append(cot)

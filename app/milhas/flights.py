@@ -10,6 +10,18 @@ import httpx
 SERPAPI_KEY = os.environ.get("SERPAPI_KEY", "")
 CLASSES = {"economica": 1, "premium": 2, "executiva": 3, "primeira": 4}
 
+# Códigos de cidade (metropolitanos) não existem no Google Flights; a SerpAPI aceita
+# vários aeroportos separados por vírgula.
+CIDADES_MULTI = {
+    "SAO": "GRU,CGH,VCP", "RIO": "GIG,SDU", "BHZ": "CNF,PLU",
+    "NYC": "JFK,EWR,LGA", "LON": "LHR,LGW,STN,LCY,LTN", "PAR": "CDG,ORY", "ROM": "FCO,CIA",
+    "MIL": "MXP,LIN", "BUE": "EZE,AEP", "TYO": "NRT,HND", "CHI": "ORD,MDW", "WAS": "IAD,DCA,BWI",
+}
+
+
+def aeroportos(codigo: str) -> str:
+    return CIDADES_MULTI.get(codigo.upper(), codigo.upper())
+
 
 @dataclass
 class Cotacao:
@@ -18,6 +30,18 @@ class Cotacao:
     valor: float
     cia: str | None
     link: str | None
+
+
+def erro_seguro(exc: Exception) -> str:
+    """Descreve a falha sem a URL da requisição (que contém a api_key)."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        try:
+            detalhe = exc.response.json().get("error", "")
+        except ValueError:
+            detalhe = ""
+        return f"HTTP {exc.response.status_code} da SerpAPI {detalhe}".strip()
+    texto = str(exc)
+    return texto.replace(SERPAPI_KEY, "***") if SERPAPI_KEY else texto
 
 
 def datas_candidatas(trecho: dict, maximo: int, hoje: date | None = None) -> list[tuple[date, date | None]]:
@@ -40,8 +64,8 @@ def datas_candidatas(trecho: dict, maximo: int, hoje: date | None = None) -> lis
 def buscar(trecho: dict, ida: date, volta: date | None) -> Cotacao | None:
     params = {
         "engine": "google_flights",
-        "departure_id": trecho["origem"],
-        "arrival_id": trecho["destino"],
+        "departure_id": aeroportos(trecho["origem"]),
+        "arrival_id": aeroportos(trecho["destino"]),
         "outbound_date": ida.isoformat(),
         "type": 1 if volta else 2,
         "travel_class": CLASSES.get(trecho.get("cabine") or "economica", 1),

@@ -332,6 +332,8 @@
 <script>
 const $ = (s) => document.querySelector(s);
 const CIDADES = {
+  SAO: "São Paulo, todos", RIO: "Rio, todos", BHZ: "Belo Horizonte, todos", NYC: "Nova York, todos",
+  LON: "Londres, todos", PAR: "Paris, todos", BUE: "Buenos Aires, todos", TYO: "Tóquio, todos",
   BSB: "Brasília", GRU: "São Paulo", CGH: "São Paulo", VCP: "Campinas", GIG: "Rio de Janeiro", SDU: "Rio de Janeiro",
   CNF: "Belo Horizonte", SSA: "Salvador", REC: "Recife", FOR: "Fortaleza", NAT: "Natal", MCZ: "Maceió", JPA: "João Pessoa",
   POA: "Porto Alegre", CWB: "Curitiba", FLN: "Florianópolis", BEL: "Belém", MAO: "Manaus", GYN: "Goiânia", CGB: "Cuiabá",
@@ -387,8 +389,10 @@ async function api(metodo, caminho, corpo) {
 }
 
 /* Radar */
+let BUSCA_ATIVA = false;
 async function carregarRadar() {
   const s = await api("GET", "/status");
+  BUSCA_ATIVA = s.busca_voos_ativa;
   const rss = s.tarefas?.rss;
   const feeds = Object.entries(s.feeds || {});
   const falhas = feeds.filter(([, f]) => !f.ok).length;
@@ -433,6 +437,7 @@ function cartao(t) {
       ${milhas ? `<span class="milhas">${milhas}</span>` : ""}
       <div class="acoes">
         <button class="btn-texto" data-precos="${t.id}">Ver preços</button>
+        ${ativa ? `<button class="btn-texto" data-buscar="${t.id}">Buscar preços agora</button>` : ""}
         <button class="btn-texto" data-toggle="${t.id}" data-ativo="${ativa ? 1 : 0}">${ativa ? "Pausar" : "Retomar"}</button>
         <button class="btn-texto perigo" data-remover="${t.id}">Remover</button>
       </div>
@@ -481,6 +486,16 @@ async function carregarPromos() {
       </div>
     </li>`;
   }).join("") : `<li class="vazio-msg">Nenhuma promoção nesse período. Amplie o período ou toque em “Coletar promoções agora”.</li>`;
+}
+
+async function mostrarPrecos(id) {
+  const r = await api("GET", `/trechos/${id}/precos?limite=4`);
+  $(`#precos-${id}`).textContent = r.precos.length
+    ? `Menor preço já visto: ${brl(r.minimo_historico)}. Últimas cotações: ` +
+      r.precos.map((p) => `${brl(p.valor)} em ${dia(p.data_ida)}${p.cia ? " (" + p.cia + ")" : ""}`).join(", ") + "."
+    : BUSCA_ATIVA
+      ? "Nenhuma cotação ainda. Toque em “Buscar preços agora” ou aguarde a próxima busca automática."
+      : "A busca de preços está desligada: falta a SERPAPI_KEY no .env do milhas-monitor.";
 }
 
 async function tudo() {
@@ -533,13 +548,14 @@ document.addEventListener("click", async (e) => {
       aviso("Rota removida");
       await Promise.all([carregarRotas(), carregarRadar()]);
     } else if (b.dataset.precos) {
-      const r = await api("GET", `/trechos/${b.dataset.precos}/precos?limite=4`);
-      $(`#precos-${b.dataset.precos}`).textContent = r.precos.length
-        ? `Menor preço já visto: ${brl(r.minimo_historico)}. Últimas cotações: ` +
-          r.precos.map((p) => `${brl(p.valor)} em ${dia(p.data_ida)}${p.cia ? " (" + p.cia + ")" : ""}`).join(", ") + "."
-        : "Ainda sem cotações. A busca de preços precisa da SERPAPI_KEY no .env.";
+      await mostrarPrecos(b.dataset.precos);
+    } else if (b.dataset.buscar) {
+      b.disabled = true;
+      await api("POST", `/trechos/${b.dataset.buscar}/buscar`);
+      $(`#precos-${b.dataset.buscar}`).textContent = "Buscando preços no Google Flights…";
+      setTimeout(() => mostrarPrecos(b.dataset.buscar).catch((e) => aviso(e.message)).finally(() => (b.disabled = false)), 25000);
     }
-  } catch (err) { aviso(err.message); }
+  } catch (err) { aviso(err.message); b.disabled = false; }
   finally { if (b.dataset.exec) b.disabled = false; }
 });
 

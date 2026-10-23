@@ -60,6 +60,12 @@ voos:
 # Nomes usados para casar posts de blog ("Passagens para Lisboa...") com seus trechos.
 # Faltou um aeroporto? Adicione aqui ou use o campo "palavras" do trecho.
 cidades:
+  SAO: [sao paulo, guarulhos, congonhas]
+  RIO: [rio de janeiro]
+  NYC: [nova york, nova iorque]
+  LON: [londres]
+  PAR: [paris]
+  BUE: [buenos aires]
   BSB: [brasilia]
   GRU: [sao paulo, guarulhos]
   CGH: [sao paulo, congonhas]
