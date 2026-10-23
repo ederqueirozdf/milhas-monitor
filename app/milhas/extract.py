@@ -129,8 +129,9 @@ def chave_promo(p: Promo, url: str, hoje: date | None = None) -> str:
 
 
 def termos_do_trecho(trecho: dict, cidades: dict[str, list[str]]) -> list[str]:
-    destino = trecho["destino"].upper()
-    termos = [destino.lower(), *cidades.get(destino, [])]
+    termos = []
+    for codigo in trecho["destino"].upper().split(","):
+        termos += [codigo.lower(), *cidades.get(codigo, [])]
     if trecho.get("palavras"):
         termos += [normalizar(p) for p in trecho["palavras"].split(",") if p.strip()]
     return termos

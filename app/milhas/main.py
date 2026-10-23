@@ -78,13 +78,17 @@ Cabine = Literal["economica", "premium", "executiva", "primeira"]
 
 
 RE_CIAS = r"^[A-Z0-9]{2}(,[A-Z0-9]{2})*$"
+# Um ou mais aeroportos/códigos de cidade (ex.: "GRU,VCP"), pesquisados juntos numa só busca.
+RE_AEROPORTOS = r"^[A-Z]{3}(,[A-Z]{3}){0,5}$"
 
 
 class TrechoBase(BaseModel):
     @field_validator("origem", "destino", mode="before", check_fields=False)
     @classmethod
     def maiusculo(cls, v):
-        return v.upper().strip() if isinstance(v, str) else v
+        if isinstance(v, str):
+            return ",".join(dict.fromkeys(c.strip().upper() for c in v.split(",") if c.strip()))
+        return v
 
     @field_validator("cias", mode="before", check_fields=False)
     @classmethod
@@ -96,8 +100,8 @@ class TrechoBase(BaseModel):
 
 
 class TrechoIn(TrechoBase):
-    origem: str = Field(pattern=r"^[A-Z]{3}$")
-    destino: str = Field(pattern=r"^[A-Z]{3}$")
+    origem: str = Field(pattern=RE_AEROPORTOS)
+    destino: str = Field(pattern=RE_AEROPORTOS)
     data_ida: date
     data_volta: date | None = None
     flex_dias: int = Field(0, ge=0, le=15)
@@ -119,8 +123,8 @@ class TrechoIn(TrechoBase):
 
 
 class TrechoPatch(TrechoBase):
-    origem: str | None = Field(None, pattern=r"^[A-Z]{3}$")
-    destino: str | None = Field(None, pattern=r"^[A-Z]{3}$")
+    origem: str | None = Field(None, pattern=RE_AEROPORTOS)
+    destino: str | None = Field(None, pattern=RE_AEROPORTOS)
     data_ida: date | None = None
     data_volta: date | None = None
     flex_dias: int | None = Field(None, ge=0, le=15)

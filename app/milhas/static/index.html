@@ -55,6 +55,7 @@
   .iata { font: 800 3.2rem/.85 var(--display); letter-spacing: 1px; }
   .cidade { display: block; font: 400 .8rem/1.3 var(--tblr-font-sans-serif); color: var(--tblr-secondary); margin-top: .3rem; letter-spacing: 0; }
   .destino { text-align: right; }
+  .mais-aeroportos { font: 700 1.1rem/1 var(--display); color: var(--tblr-secondary); margin-left: .2rem; vertical-align: top; }
   .voo { position: relative; height: 20px; }
   .voo::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed var(--tblr-border-color); }
   .aviao { position: absolute; top: 50%; left: calc(100% - 20px); width: 20px; height: 20px; margin-top: -10px;
@@ -250,9 +251,9 @@ function buscador({ titulo = "Buscar passagens" } = {}) {
     <form class="card-body" id="form-busca" autocomplete="off">
       <div class="row g-3">
         <div class="col-6 col-md-2"><label class="form-label">Origem</label>
-          <input class="form-control iata-in" name="origem" list="aeroportos" maxlength="3" minlength="3" placeholder="BSB" required></div>
+          <input class="form-control iata-in" name="origem" list="aeroportos" maxlength="23" placeholder="BSB" title="Um ou mais códigos separados por vírgula, ex.: BSB,GYN" required></div>
         <div class="col-6 col-md-2"><label class="form-label">Destino</label>
-          <input class="form-control iata-in" name="destino" list="aeroportos" maxlength="3" minlength="3" placeholder="LIS" required></div>
+          <input class="form-control iata-in" name="destino" list="aeroportos" maxlength="23" placeholder="BUE" title="Um ou mais códigos separados por vírgula, ex.: EZE,AEP" required></div>
         <div class="col-6 col-md-2"><label class="form-label">Ida</label><input class="form-control" type="date" name="data_ida" min="${hojeISO()}" required></div>
         <div class="col-6 col-md-2"><label class="form-label">Volta</label><input class="form-control" type="date" name="data_volta" min="${hojeISO()}"></div>
         <div class="col-6 col-md-2"><label class="form-label">Passageiros</label>
@@ -317,10 +318,18 @@ function resultadoBusca(r, corpo) {
         <td><div class="d-flex align-items-center gap-2">${o.logo ? `<img class="logo-cia" src="${esc(linkSeguro(o.logo))}" alt="">` : ""}<span>${esc(o.cias)}</span></div></td>
         <td>${esc((o.partida || "").slice(11))} → ${esc((o.chegada || "").slice(11))}<div class="small text-secondary">${esc(o.de || "")} → ${esc(o.para || "")}</div></td>
         <td>${duracao(o.duracao_min)}</td>
-        <td>${o.paradas ? `${o.paradas} ${o.paradas > 1 ? "paradas" : "parada"}` : `<span class="text-green">Direto</span>`}</td>
+        <td>${o.paradas ? `${o.paradas} ${o.paradas > 1 ? "paradas" : "parada"}<div class="small text-secondary">em ${esc((o.escalas || []).join(", "))}</div>` : `<span class="text-green">Direto</span>`}</td>
         <td class="text-end"><b class="${i === 0 ? "text-green" : ""}">${brl(o.preco)}</b></td></tr>`).join("")}</tbody>
     </table></div>
   </div>`;
+}
+
+// "GRU,CGH,VCP" → GRU em destaque, "+2" e a lista completa no lugar do nome da cidade
+function iataHtml(codigos) {
+  const lista = codigos.split(",");
+  const extra = lista.length > 1 ? `<small class="mais-aeroportos">+${lista.length - 1}</small>` : "";
+  const legenda = lista.length > 1 ? `${CIDADES[lista[0]] || ""} ${lista.join(", ")}`.trim() : CIDADES[lista[0]] || "";
+  return `${esc(lista[0])}${extra}<span class="cidade">${esc(legenda)}</span>`;
 }
 
 function cartao(t) {
@@ -331,9 +340,9 @@ function cartao(t) {
     <div>
       <div class="pass-faixa"><span>Rota #${t.id}</span><span>${ativa ? "Monitorando" : "Pausada"}</span></div>
       <div class="pass-rota">
-        <div class="iata">${esc(t.origem)}<span class="cidade">${esc(CIDADES[t.origem] || "")}</span></div>
+        <div class="iata">${iataHtml(t.origem)}</div>
         <div class="voo">${AVIAO}</div>
-        <div class="iata destino">${esc(t.destino)}<span class="cidade">${esc(CIDADES[t.destino] || "")}</span></div>
+        <div class="iata destino">${iataHtml(t.destino)}</div>
       </div>
       <dl class="pass-dados">
         <div><dt>Ida</dt><dd>${dia(t.data_ida)}</dd></div>

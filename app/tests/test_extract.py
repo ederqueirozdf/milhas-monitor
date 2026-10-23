@@ -59,3 +59,15 @@ def test_menciona_trecho():
 def test_transferencia_bb():
     p = ex.analisar("Smiles oferece até 70% de bônus nas transferências de pontos do BB Empresas")
     assert (p.origem, p.destino, p.bonus_pct) == ("Banco do Brasil", "Smiles", 70)
+
+
+def test_menciona_trecho_varios_aeroportos():
+    t = {"destino": "EZE,AEP", "palavras": None}
+    assert menciona_trecho(normalizar("Passagens para Buenos Aires em promoção"), t, CFG["cidades"])
+
+
+def test_aeroportos_expande_cidade_e_remove_repetidos():
+    from milhas.flights import aeroportos
+    assert aeroportos("SAO,gru, VCP") == "GRU,CGH,VCP"
+    assert aeroportos("BUE") == "EZE,AEP"
+    assert aeroportos("BSB,GYN") == "BSB,GYN"
