@@ -30,6 +30,15 @@ node {baseDir}/milhas.mjs <comando>
 | "quais promoções de transferência saíram essa semana?" | `promocoes --dias 7 --tipo transferencia` |
 | "tem algo da Smiles?" | `promocoes --dias 14 --programa Smiles` |
 | "roda a coleta agora" / "testa o Telegram" | `executar rss` / `executar teste` |
+| "o monitor está funcionando?" / "por que não chegou alerta?" | `status` |
+
+## Diagnóstico (`status`)
+
+- `telegram_configurado: false` → faltam `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` no `.env` do milhas-monitor.
+- `busca_voos_ativa: false` → sem `SERPAPI_KEY`; trechos são monitorados só pelos posts dos blogs.
+- `feeds.<nome>.ok: false` → aquele blog falhou na última coleta (veja `erro`); os outros seguem.
+- `tarefas.<nome>.erro` preenchido → a tarefa falhou; sugira `docker compose logs milhas` na VPS.
+- `Falha ao acessar ... fetch failed` → container `milhas` parado ou fora da rede do OpenClaw.
 
 ## Regras
 

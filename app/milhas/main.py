@@ -3,15 +3,17 @@ import os
 import secrets
 from contextlib import asynccontextmanager
 from datetime import date, datetime
+from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from . import db, jobs
+from . import db, flights, jobs, notify
 from .config import CONFIG
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -49,7 +51,8 @@ async def lifespan(_app: FastAPI):
     s.shutdown(wait=False)
 
 
-app = FastAPI(title="milhas-monitor", lifespan=lifespan)
+# Sem /docs nem /openapi.json: a API fica exposta pelo Traefik.
+app = FastAPI(title="milhas-monitor", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
 
 def autenticar(authorization: str = Header(default="")):
@@ -115,9 +118,36 @@ def _trecho(c, trecho_id: int) -> dict:
     return dict(row)
 
 
+PAINEL = Path(__file__).parent / "static" / "index.html"
+
+
+@app.get("/", include_in_schema=False)
+def painel():
+    # A página é pública; os dados vêm da API, que exige o token digitado no login.
+    return FileResponse(PAINEL, headers={"Cache-Control": "no-cache", "X-Robots-Tag": "noindex"})
+
+
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+@app.get("/status", dependencies=[Depends(autenticar)])
+def status():
+    with db.tx() as c:
+        contagens = c.execute(
+            """SELECT (SELECT COUNT(*) FROM posts) AS posts,
+                      (SELECT COUNT(*) FROM promocoes WHERE criado_em >= datetime('now', '-1 day')) AS promocoes_24h,
+                      (SELECT COUNT(*) FROM trechos WHERE ativo = 1 AND data_ida >= date('now')) AS trechos_ativos,
+                      (SELECT MAX(coletado_em) FROM precos) AS ultima_cotacao"""
+        ).fetchone()
+    return {
+        **dict(contagens),
+        "telegram_configurado": bool(notify.TOKEN and notify.CHAT_ID),
+        "busca_voos_ativa": bool(flights.SERPAPI_KEY),
+        "agenda": CONFIG["agenda"],
+        **jobs.ESTADO,
+    }
 
 
 @app.get("/trechos", dependencies=[Depends(autenticar)])

@@ -6,6 +6,7 @@ const BASE = (process.env.MILHAS_API_URL || "http://milhas:8000").replace(/\/$/,
 const TOKEN = process.env.MILHAS_API_TOKEN;
 
 const AJUDA = `Uso:
+  status
   trechos listar [--todos]
   trechos adicionar --origem BSB --destino LIS --ida 2027-05-10 [--volta 2027-05-25]
                     [--flex 3] [--cabine economica|premium|executiva|primeira] [--adultos 2]
@@ -67,7 +68,9 @@ async function main() {
   const id = o._[0];
   let r;
 
-  if (grupo === "trechos") {
+  if (grupo === "status") {
+    r = await api("GET", "/status");
+  } else if (grupo === "trechos") {
     if (acao === "listar") r = await api("GET", `/trechos${o.todos ? "?todos=true" : ""}`);
     else if (acao === "adicionar") r = await api("POST", "/trechos", corpoTrecho(o));
     else if (acao === "editar" && id) r = await api("PATCH", `/trechos/${id}`, corpoTrecho(o));
