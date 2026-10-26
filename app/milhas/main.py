@@ -13,7 +13,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from . import db, flights, jobs, notify
+from . import db, flights, jobs, notify, seats
 from .config import CONFIG
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -24,17 +24,19 @@ API_TOKEN = os.environ.get("MILHAS_API_TOKEN", "")
 TAREFAS = {
     "rss": jobs.run_rss,
     "voos": jobs.run_voos,
+    "milhas": jobs.run_milhas,
+    "explorar": jobs.run_explorar,
     "resumo": jobs.run_resumo,
     "limpeza": jobs.run_limpeza,
     "teste": jobs.run_teste,
 }
 
 
-def _proxima_busca_voos(tz: ZoneInfo, horas: int) -> datetime:
-    """Retoma o ciclo a partir da última cotação, para um restart não atrasar (nem repetir) a busca."""
+def _proxima_busca_voos(tz: ZoneInfo, horas: int, tabela: str = "precos") -> datetime:
+    """Retoma o ciclo a partir da última coleta, para um restart não atrasar (nem repetir) a busca."""
     agora = datetime.now(tz)
     with db.tx() as c:
-        ultima = c.execute("SELECT MAX(coletado_em) FROM precos").fetchone()[0]
+        ultima = c.execute(f"SELECT MAX(coletado_em) FROM {tabela}").fetchone()[0]
     if not ultima:
         return agora + timedelta(minutes=1)
     proxima = datetime.fromisoformat(ultima).replace(tzinfo=timezone.utc) + timedelta(hours=horas)
@@ -51,6 +53,12 @@ def agendador() -> BackgroundScheduler:
     hora, minuto = (int(x) for x in ag["resumo_diario"].split(":"))
     s.add_job(jobs.run_resumo, CronTrigger(hour=hora, minute=minuto, timezone=tz), id="resumo")
     s.add_job(jobs.run_limpeza, CronTrigger(hour=3, minute=30, timezone=tz), id="limpeza")
+    horas_milhas = CONFIG.get("seats", {}).get("milhas_horas", 6)
+    s.add_job(jobs.run_milhas, "interval", hours=horas_milhas, id="milhas",
+              next_run_time=_proxima_busca_voos(tz, horas_milhas, "milhas_cotacoes"))
+    hora, minuto = (int(x) for x in CONFIG.get("explorar", {}).get("horario", "07:30").split(":"))
+    s.add_job(jobs.run_explorar, CronTrigger(hour=hora, minute=minuto, timezone=tz), id="explorar",
+              next_run_time=_proxima_busca_voos(tz, 24, "explorar"))
     return s
 
 
@@ -170,12 +178,17 @@ def status():
             """SELECT (SELECT COUNT(*) FROM posts) AS posts,
                       (SELECT COUNT(*) FROM promocoes WHERE criado_em >= datetime('now', '-1 day')) AS promocoes_24h,
                       (SELECT COUNT(*) FROM trechos WHERE ativo = 1 AND data_ida >= date('now')) AS trechos_ativos,
-                      (SELECT MAX(coletado_em) FROM precos) AS ultima_cotacao"""
+                      (SELECT MAX(coletado_em) FROM precos) AS ultima_cotacao,
+                      (SELECT MAX(coletado_em) FROM milhas_cotacoes) AS ultima_cotacao_milhas,
+                      (SELECT MAX(coletado_em) FROM explorar) AS explorar_atualizado,
+                      (SELECT COUNT(*) FROM explorar) AS explorar_rotas"""
         ).fetchone()
     return {
         **dict(contagens),
         "telegram_configurado": bool(notify.TOKEN and notify.CHAT_ID),
         "busca_voos_ativa": bool(flights.SERPAPI_KEY),
+        "seats_ativo": bool(seats.API_KEY),
+        "seats_chamadas_hoje": seats.CHAMADAS["n"],
         "agenda": CONFIG["agenda"],
         **jobs.ESTADO,
     }
@@ -197,19 +210,80 @@ def criar_trecho(t: TrechoIn, bg: BackgroundTasks):
         novo = _trecho(c, cur.lastrowid)
     if flights.SERPAPI_KEY:
         bg.add_task(jobs.run_voos, novo["id"])
+    if seats.API_KEY:
+        bg.add_task(jobs.run_milhas, novo["id"])
     return novo
 
 
 @app.post("/trechos/{trecho_id}/buscar", status_code=202, dependencies=[Depends(autenticar)])
 def buscar_precos(trecho_id: int, bg: BackgroundTasks):
-    if not flights.SERPAPI_KEY:
-        raise HTTPException(409, "Busca de preços desligada: falta SERPAPI_KEY no .env do milhas-monitor")
+    """Busca preço em dinheiro (SerpAPI) e em milhas (Seats.aero) do trecho, conforme as chaves configuradas."""
+    if not flights.SERPAPI_KEY and not seats.API_KEY:
+        raise HTTPException(409, "Busca desligada: falta SERPAPI_KEY ou SEATS_AERO_API_KEY no .env do milhas-monitor")
     with db.tx() as c:
         t = _trecho(c, trecho_id)
     if not t["ativo"]:
         raise HTTPException(409, "Rota pausada: retome antes de buscar preços")
-    bg.add_task(jobs.run_voos, trecho_id)
-    return {"agendada": trecho_id}
+    if flights.SERPAPI_KEY:
+        bg.add_task(jobs.run_voos, trecho_id)
+    if seats.API_KEY:
+        bg.add_task(jobs.run_milhas, trecho_id)
+    return {"agendada": trecho_id, "dinheiro": bool(flights.SERPAPI_KEY), "milhas": bool(seats.API_KEY)}
+
+
+@app.get("/trechos/{trecho_id}/milhas", dependencies=[Depends(autenticar)])
+def milhas_trecho(trecho_id: int):
+    """Ofertas em milhas da coleta mais recente de cada sentido, com o resumo/avaliação."""
+    with db.tx() as c:
+        t = _trecho(c, trecho_id)
+        ofertas = {}
+        for sentido in ("ida", "volta"):
+            ofertas[sentido] = [dict(r) for r in c.execute(
+                """SELECT * FROM milhas_cotacoes WHERE trecho_id = ? AND sentido = ? AND coletado_em =
+                     (SELECT MAX(coletado_em) FROM milhas_cotacoes WHERE trecho_id = ? AND sentido = ?)
+                   ORDER BY milhas""", (trecho_id, sentido, trecho_id, sentido))]
+        resumo = jobs.resumo_milhas(c, t)
+    return {"trecho": t, "resumo": resumo, "ofertas": ofertas, "seats_ativo": bool(seats.API_KEY)}
+
+
+@app.get("/explorar", dependencies=[Depends(autenticar)])
+def listar_explorar(programa: str | None = None, cabine: str | None = None, regiao: str | None = None,
+                    origem: str | None = None, destino: str | None = None, max_milhas: int | None = None,
+                    direto: bool = False, limite: int = 200):
+    """Retrato mais recente do Explorar: a oferta mais barata por programa/cabine/origem/destino."""
+    sql, params = "SELECT * FROM explorar WHERE 1 = 1", []
+    for coluna, valor in (("programa", programa), ("cabine", cabine), ("regiao_destino", regiao)):
+        if valor:
+            sql += f" AND {coluna} = ?"
+            params.append(valor)
+    for coluna, valor in (("origem", origem), ("destino", destino)):
+        if valor:
+            codigos = [x.strip().upper() for x in valor.split(",") if x.strip()]
+            sql += f" AND {coluna} IN ({', '.join('?' * len(codigos))})"
+            params += codigos
+    if max_milhas:
+        sql += " AND milhas <= ?"
+        params.append(max_milhas)
+    if direto:
+        sql += " AND direto = 1"
+    with db.tx() as c:
+        linhas = [dict(r) for r in c.execute(sql + " ORDER BY milhas LIMIT ?", (*params, min(limite, 1000)))]
+        meta = c.execute("SELECT MAX(coletado_em) AS atualizado, COUNT(*) AS total FROM explorar").fetchone()
+    return {"ofertas": linhas, "atualizado_em": meta["atualizado"], "total": meta["total"],
+            "programas": seats.PROGRAMAS, "regioes": seats.REGIOES, "seats_ativo": bool(seats.API_KEY)}
+
+
+@app.get("/seats/viagem/{availability_id}", dependencies=[Depends(autenticar)])
+def seats_viagem(availability_id: str):
+    """Voos, taxas e links de emissão de uma oferta (1 chamada à Seats.aero)."""
+    if not seats.API_KEY:
+        raise HTTPException(409, "Seats.aero desligada: falta SEATS_AERO_API_KEY no .env do milhas-monitor")
+    if not availability_id.replace("-", "").replace("_", "").isalnum() or len(availability_id) > 64:
+        raise HTTPException(400, "ID de oferta inválido")
+    try:
+        return seats.detalhes(availability_id)
+    except Exception as exc:
+        raise HTTPException(502, f"Falha na Seats.aero: {seats.erro_seguro(exc)}")
 
 
 @app.patch("/trechos/{trecho_id}", dependencies=[Depends(autenticar)])
@@ -312,7 +386,15 @@ def oportunidades(dias: int = 3):
         voos.append(d)
     voos.sort(key=lambda v: (not v["oportunidade"], -v["pct_abaixo_media"]))
     posts.sort(key=lambda p: p["em"], reverse=True)
-    return {"voos": voos, "posts": posts}
+
+    milhas = []
+    with db.tx() as c:
+        for t in db.trechos_ativos():
+            r = jobs.resumo_milhas(c, t)
+            if r:
+                milhas.append({"trecho": t, **r})
+    milhas.sort(key=lambda m: (not m["oportunidade"], m["total"]))
+    return {"voos": voos, "posts": posts, "milhas": milhas, "seats_ativo": bool(seats.API_KEY)}
 
 
 @app.get("/metricas", dependencies=[Depends(autenticar)])

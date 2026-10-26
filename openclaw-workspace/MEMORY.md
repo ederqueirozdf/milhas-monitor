@@ -28,9 +28,14 @@ Carregar só na sessão principal. Resumo curado, não log.
   `eleven_multilingual_v2`, pt), transcrição com Scribe v2. Chave em `ELEVENLABS_API_KEY`
   no `.env` do OpenClaw. Modelo padrão do agente: `deepseek/deepseek-flash`.
 
+- 2026-10-26: integração Seats.aero (plano Pro, 1.000 chamadas/dia, uso não comercial).
+  Milhas por rota a cada 6h (`max_milhas` = total ida+volta), Explorar diário (Smiles e Azul,
+  América do Sul, econômica e executiva, limites por região no config.yaml), detalhes e links
+  de emissão sob demanda. LATAM Pass não é suportado pela Seats.aero. Versão anterior: tag
+  `v1.0.0-pre-seats` (backup privado de banco e .env em `/root/backups/` na VPS).
+
 ## Próximas fases
 
-- Disponibilidade em milhas por trecho (Seats.aero, pago) usando o `max_milhas` já cadastrado.
 - Fallback com LLM para posts que o classificador por regex não reconhece.
 
 ## Programas e saldos do usuário

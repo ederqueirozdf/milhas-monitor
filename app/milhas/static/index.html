@@ -97,6 +97,10 @@
     .promo { grid-template-columns: 70px minmax(0, 1fr); }
   }
   @media (prefers-reduced-motion: reduce) { .aviao { animation: none; } }
+  dialog.viagem { border: 0; border-radius: 12px; padding: 0; width: min(760px, calc(100% - 24px)); max-height: 88vh;
+                  background: var(--tblr-bg-surface); color: var(--tblr-body-color); }
+  dialog.viagem::backdrop { background: rgba(14, 24, 48, .6); }
+  .milhas-num { font: 800 1.5rem/1 var(--display); }
   #msg { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 2000; display: none; max-width: calc(100% - 32px); }
 </style>
 </head>
@@ -134,6 +138,7 @@
           <ul class="navbar-nav pt-lg-2">
             <li class="nav-item"><a class="nav-link" href="#/"><span class="nav-link-icon"><i class="ti ti-layout-dashboard"></i></span><span class="nav-link-title">Início</span></a></li>
             <li class="nav-item"><a class="nav-link" href="#/emissoes"><span class="nav-link-icon"><i class="ti ti-ticket"></i></span><span class="nav-link-title">Emissões</span><span class="badge bg-red text-red-fg ms-auto d-none" data-cont="oportunidades"></span></a></li>
+            <li class="nav-item"><a class="nav-link" href="#/explorar"><span class="nav-link-icon"><i class="ti ti-compass"></i></span><span class="nav-link-title">Explorar</span><span class="badge ms-auto d-none" data-cont="explorar"></span></a></li>
             <li class="nav-item"><a class="nav-link" href="#/rotas"><span class="nav-link-icon"><i class="ti ti-route"></i></span><span class="nav-link-title">Rotas</span><span class="badge ms-auto d-none" data-cont="rotas"></span></a></li>
             <li class="nav-subtitulo">Promoções</li>
             <li class="nav-item"><a class="nav-link" href="#/promocoes/transferencia"><span class="nav-link-icon"><i class="ti ti-arrows-exchange"></i></span><span class="nav-link-title">Transferências</span><span class="badge ms-auto d-none" data-cont="transferencia"></span></a></li>
@@ -162,6 +167,13 @@
   </div>
 </div>
 
+<dialog class="viagem" id="dlg-viagem" aria-labelledby="t-viagem">
+  <div class="par-avion"></div>
+  <div class="card-header d-flex"><h3 class="card-title" id="t-viagem">Detalhes do resgate</h3>
+    <button class="btn-close ms-auto" data-fechar aria-label="Fechar"></button></div>
+  <div class="card-body" id="viagem-corpo" style="overflow:auto; max-height: 72vh"></div>
+</dialog>
+
 <datalist id="aeroportos"></datalist>
 <div id="msg" class="alert alert-dark mb-0" role="status" aria-live="polite"></div>
 
@@ -187,6 +199,13 @@ const CIAS = [["LA", "LATAM"], ["G3", "Gol"], ["AD", "Azul"], ["TP", "TAP"], ["C
   ["AR", "Aerolíneas"], ["DM", "Arajet"], ["AA", "American"], ["UA", "United"], ["DL", "Delta"], ["AF", "Air France"],
   ["KL", "KLM"], ["IB", "Iberia"], ["LH", "Lufthansa"], ["EK", "Emirates"], ["QR", "Qatar"], ["TK", "Turkish"]];
 const NOME_CIA = Object.fromEntries(CIAS);
+const PROG = { smiles: "Smiles", azul: "Azul Fidelidade", aeroplan: "Aeroplan", flyingblue: "Flying Blue", american: "AAdvantage",
+  united: "United", connectmiles: "ConnectMiles", qatar: "Qatar", turkish: "Turkish", emirates: "Emirates", delta: "Delta",
+  alaska: "Alaska", virginatlantic: "Virgin Atlantic", aeromexico: "Club Premier", etihad: "Etihad", lufthansa: "Miles&More",
+  singapore: "KrisFlyer", qantas: "Qantas", velocity: "Velocity", eurobonus: "EuroBonus", jetblue: "TrueBlue",
+  ethiopian: "ShebaMiles", saudia: "AlFursan", finnair: "Finnair Plus", frontier: "Frontier", spirit: "Spirit" };
+const REGIAO = { "North America": "América do Norte", "South America": "América do Sul", Africa: "África", Asia: "Ásia", Europe: "Europa", Oceania: "Oceania" };
+const milhasTxt = (n) => n == null ? "—" : Number(n).toLocaleString("pt-BR");
 const CABINE = { economica: "Econômica", premium: "Premium economy", executiva: "Executiva", primeira: "Primeira classe" };
 const TIPOS = {
   transferencia: { nome: "Transferências", sub: "Bônus para transferir pontos de bancos e cartões para programas aéreos" },
@@ -360,6 +379,7 @@ function cartao(t) {
       ${t.max_milhas ? `<span class="small text-secondary">ou ${Number(t.max_milhas).toLocaleString("pt-BR")} milhas</span>` : ""}
       <div class="acoes">
         <button class="btn-link-sm" data-precos="${t.id}">Ver preços</button>
+        <button class="btn-link-sm" data-milhas="${t.id}">Ver milhas</button>
         ${ativa ? `<button class="btn-link-sm" data-buscar="${t.id}">Buscar agora</button>` : ""}
         <button class="btn-link-sm" data-toggle="${t.id}" data-ativo="${ativa ? 1 : 0}">${ativa ? "Pausar" : "Retomar"}</button>
         <button class="btn-link-sm perigo" data-remover="${t.id}">Remover</button>
@@ -483,6 +503,7 @@ async function telaEmissoes() {
     <div class="card-actions text-secondary small">Preço abaixo do seu teto, menor já visto ou 10% abaixo da média</div></div>
     ${opp.length ? tabela(opp) : `<div class="card-body text-secondary">Nenhuma oportunidade nas cotações dos últimos 3 dias. Defina um teto nas rotas para ser avisado assim que o preço chegar lá.</div>`}
   </div>
+  ${cardMilhas(r)}
   ${demais.length ? `<div class="card mb-4"><div class="card-header"><h3 class="card-title">Demais rotas</h3></div>${tabela(demais)}</div>` : ""}
   <div class="card"><div class="card-header"><h3 class="card-title">Posts que citam suas rotas</h3><div class="card-actions text-secondary small">Últimos 30 dias</div></div>
     ${r.posts.length ? `<div class="list-group list-group-flush">${r.posts.map((p) => `<div class="list-group-item">
@@ -490,6 +511,102 @@ async function telaEmissoes() {
       <div class="small text-secondary mt-1">${esc(p.fonte)}, ${esc(hora(p.em))}</div></div>`).join("")}</div>`
       : `<div class="card-body text-secondary">Nenhum post de blog citou o destino das suas rotas nos últimos 30 dias.</div>`}
   </div>`;
+}
+
+function ofertaMilhas(o) {
+  if (!o) return `<span class="text-secondary">—</span>`;
+  return `<span class="milhas-num">${milhasTxt(o.milhas)}</span> <span class="small">${esc(PROG[o.programa] || o.programa)}</span>
+    <div class="small text-secondary">${dia(o.data_voo)}, ${esc(o.origem)}→${esc(o.destino)}, ${esc(o.cias || "")}${o.direto ? ", direto" : ""}${o.assentos ? `, ${o.assentos} assento(s)` : ""}</div>
+    ${o.availability_id ? `<button class="btn-link-sm" data-viagem="${esc(o.availability_id)}">Voos e emissão</button>` : ""}`;
+}
+
+function cardMilhas(r) {
+  const titulo = `<div class="card-header"><h3 class="card-title">Resgates em milhas</h3>
+    <div class="card-actions text-secondary small">Seats.aero, dados em cache, sem taxas</div></div>`;
+  if (!r.seats_ativo) return `<div class="card mb-4">${titulo}<div class="card-body text-secondary">Integração desligada: falta a SEATS_AERO_API_KEY no .env do milhas-monitor.</div></div>`;
+  if (!r.milhas.length) return `<div class="card mb-4">${titulo}<div class="card-body text-secondary">Nenhuma oferta em milhas coletada ainda para as suas rotas. A busca roda a cada 6h; toque em “Atualizar” numa rota para buscar agora.</div></div>`;
+  return `<div class="card mb-4">${titulo}<div class="table-responsive"><table class="table table-vcenter card-table">
+    <thead><tr><th>Rota</th><th>Ida</th><th>Volta</th><th class="text-end">Total</th><th class="text-end">Valor do milheiro</th><th>Por quê</th></tr></thead>
+    <tbody>${r.milhas.map((m) => {
+      const t = m.trecho, ida = m.sentidos.ida?.melhor, volta = m.sentidos.volta?.melhor;
+      return `<tr>
+        <td><span class="rota-iata">${esc(t.origem.split(",")[0])} → ${esc(t.destino.split(",")[0])}</span><div class="small text-secondary">Rota #${t.id}, ${esc(CABINE[t.cabine] || t.cabine)}</div></td>
+        <td>${ofertaMilhas(ida)}</td>
+        <td>${t.data_volta ? ofertaMilhas(volta) : `<span class="text-secondary">só ida</span>`}</td>
+        <td class="text-end"><span class="num-grande" style="font-size:1.7rem">${milhasTxt(m.total)}</span><div class="small text-secondary">${t.max_milhas ? "teto " + milhasTxt(t.max_milhas) : "sem teto"}</div></td>
+        <td class="text-end">${m.valor_milheiro ? `<b>${brl(m.valor_milheiro, 2)}</b><div class="small text-secondary">vs ${brl(m.preco_dinheiro)} em dinheiro${m.alvo ? `, alvo ${brl(m.alvo, 2)}` : ""}</div>` : `<span class="text-secondary small">sem preço em R$ recente</span>`}</td>
+        <td>${m.motivos.map((x) => `<span class="badge bg-green-lt me-1 mb-1">${esc(x)}</span>`).join("") || `<span class="text-secondary small">sem sinal ainda</span>`}</td></tr>`;
+    }).join("")}</tbody></table></div></div>`;
+}
+
+async function telaExplorar() {
+  const f = JSON.parse(sessionStorage.getItem("explorar") || "{}");
+  const q = new URLSearchParams({ limite: "300" });
+  for (const k of ["programa", "cabine", "regiao", "origem", "destino", "max_milhas"]) if (f[k]) q.set(k, f[k]);
+  if (f.direto) q.set("direto", "true");
+  const r = await api("GET", `/explorar?${q}`);
+  const opt = (obj, atual, todos) => `<option value="">${todos}</option>` +
+    Object.entries(obj).map(([v, n]) => `<option value="${esc(v)}" ${v === atual ? "selected" : ""}>${esc(n)}</option>`).join("");
+  const filtros = `
+  <form class="card mb-3" id="form-explorar"><div class="card-body"><div class="row g-2 align-items-end">
+    <div class="col-6 col-md-2"><label class="form-label">Programa</label><select class="form-select" name="programa">${opt(PROG, f.programa, "Todos")}</select></div>
+    <div class="col-6 col-md-2"><label class="form-label">Cabine</label><select class="form-select" name="cabine">${opt(CABINE, f.cabine, "Todas")}</select></div>
+    <div class="col-6 col-md-2"><label class="form-label">Destino na região</label><select class="form-select" name="regiao">${opt(REGIAO, f.regiao, "Qualquer")}</select></div>
+    <div class="col-6 col-md-1"><label class="form-label">Origem</label><input class="form-control" name="origem" list="aeroportos" placeholder="GRU" value="${esc(f.origem || "")}"></div>
+    <div class="col-6 col-md-1"><label class="form-label">Destino</label><input class="form-control" name="destino" list="aeroportos" placeholder="LIS" value="${esc(f.destino || "")}"></div>
+    <div class="col-6 col-md-2"><label class="form-label">Até (milhas)</label><input class="form-control" type="number" name="max_milhas" step="1000" value="${esc(f.max_milhas || "")}"></div>
+    <div class="col-6 col-md-1"><label class="form-check mb-2"><input class="form-check-input" type="checkbox" name="direto" ${f.direto ? "checked" : ""}><span class="form-check-label">Só diretos</span></label></div>
+    <div class="col-6 col-md-1"><button class="btn btn-primary w-100">Filtrar</button></div>
+  </div></div></form>`;
+  if (!r.seats_ativo && !r.total) return filtros + `<div class="alert alert-warning">Integração desligada: falta a SEATS_AERO_API_KEY no .env do milhas-monitor.</div>`;
+  const linhas = r.ofertas.map((o) => `<tr>
+    <td><span class="rota-iata">${esc(o.origem)} → ${esc(o.destino)}</span><div class="small text-secondary">${esc(CIDADES[o.destino] || "")}${CIDADES[o.destino] ? ", " : ""}${esc(REGIAO[o.regiao_destino] || o.regiao_destino || "")}</div></td>
+    <td>${dia(o.data_voo)}</td>
+    <td>${esc(PROG[o.programa] || o.programa)}<div class="small text-secondary">${esc(CABINE[o.cabine] || o.cabine)}</div></td>
+    <td>${esc(o.cias || "")}<div class="small ${o.direto ? "text-green" : "text-secondary"}">${o.direto ? "direto" : "com conexão"}</div></td>
+    <td class="text-end"><span class="milhas-num">${milhasTxt(o.milhas)}</span>${o.assentos ? `<div class="small text-secondary">${o.assentos} assento(s)</div>` : ""}</td>
+    <td class="text-end"><button class="btn btn-sm" data-viagem="${esc(o.availability_id)}">Voos e emissão</button></td></tr>`).join("");
+  return filtros + `<div class="card"><div class="card-header"><h3 class="card-title">${r.ofertas.length} de ${r.total} ofertas</h3>
+    <div class="card-actions text-secondary small">Mais barata por rota, só ida, sem taxas. Atualizado ${esc(hora(r.atualizado_em))}</div></div>
+    ${r.ofertas.length ? `<div class="table-responsive"><table class="table table-vcenter card-table">
+      <thead><tr><th>Rota</th><th>Data</th><th>Programa</th><th>Companhia</th><th class="text-end">Milhas</th><th></th></tr></thead>
+      <tbody>${linhas}</tbody></table></div>`
+      : `<div class="card-body text-secondary">${r.total ? "Nenhuma oferta com esses filtros." : "O Explorar ainda não rodou. Ele roda todo dia às 07:30; no Radar dá para rodar agora."}</div>`}</div>`;
+}
+
+async function abrirViagem(id) {
+  const dlg = $("#dlg-viagem");
+  $("#viagem-corpo").innerHTML = `<div class="text-center py-4"><div class="spinner-border text-primary"></div><div class="text-secondary mt-2">Consultando a Seats.aero…</div></div>`;
+  dlg.showModal();
+  try {
+    const r = await api("GET", `/seats/viagem/${encodeURIComponent(id)}`);
+    const links = r.links.length ? `<div class="d-flex flex-wrap gap-2 mb-3">${r.links.map((l) =>
+      `<a class="btn ${l.principal ? "btn-primary" : ""}" href="${esc(linkSeguro(l.url))}" target="_blank" rel="noopener noreferrer"><i class="ti ti-external-link me-1"></i>${esc(l.rotulo || "Emitir")}</a>`).join("")}</div>` : "";
+    const viagens = r.viagens.map((v) => `
+      <div class="border rounded p-3 mb-2">
+        <div class="d-flex flex-wrap gap-3 align-items-baseline">
+          <span class="milhas-num">${milhasTxt(v.milhas)} milhas</span>
+          <span>+ ${esc(v.simbolo || "")} ${esc(v.taxas ?? "?")} ${esc(v.moeda || "")} de taxas</span>
+          <span class="text-secondary">${esc(PROG[v.programa] || v.programa || "")}, ${esc(v.cabine || "")}, ${v.paradas ? v.paradas + " parada(s)" : "direto"}, ${duracao(v.duracao_min)}</span>
+          ${v.assentos ? `<span class="badge bg-azure-lt">${v.assentos} assento(s)</span>` : ""}
+        </div>
+        <ul class="list-unstyled small mt-2 mb-0">${v.segmentos.map((s) => `<li><b>${esc(s.voo || "")}</b> ${esc(s.de)} ${esc((s.partida || "").slice(11, 16))} → ${esc(s.para)} ${esc((s.chegada || "").slice(11, 16))}
+          <span class="text-secondary">${esc((s.partida || "").slice(0, 10))}${s.aviao ? ", " + esc(s.aviao) : ""}</span></li>`).join("")}</ul>
+      </div>`).join("");
+    $("#viagem-corpo").innerHTML = links + (viagens || `<p class="text-secondary">A Seats.aero não retornou voos para esta oferta (pode ter acabado).</p>`) +
+      `<p class="small text-secondary mb-0">Horários locais de cada aeroporto. Disponibilidade em cache: confirme no site do programa antes de transferir pontos.</p>`;
+  } catch (e) { $("#viagem-corpo").innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`; }
+}
+
+async function mostrarMilhas(id) {
+  const r = await api("GET", `/trechos/${id}/milhas`);
+  const alvo = $(`#precos-${id}`); if (!alvo) return;
+  if (!r.seats_ativo) { alvo.textContent = "Milhas desligadas: falta a SEATS_AERO_API_KEY."; return; }
+  if (!r.resumo) { alvo.textContent = "Nenhuma oferta em milhas ainda. Toque em “Buscar agora”."; return; }
+  const s = r.resumo.sentidos;
+  const parte = (n, x) => x ? `${n}: ${milhasTxt(x.melhor.milhas)} ${PROG[x.melhor.programa] || x.melhor.programa} (${dia(x.melhor.data_voo)})` : "";
+  alvo.textContent = [parte("Ida", s.ida), parte("Volta", s.volta), `Total ${milhasTxt(r.resumo.total)} milhas + taxas`,
+    r.resumo.valor_milheiro ? `milheiro rende ${brl(r.resumo.valor_milheiro, 2)}` : ""].filter(Boolean).join(". ") + ".";
 }
 
 async function telaPromos(tipo) {
@@ -529,7 +646,7 @@ async function telaPromos(tipo) {
 async function telaRadar() {
   const s = STATUS = await api("GET", "/status");
   const feeds = Object.entries(s.feeds || {});
-  const tarefas = { rss: "Coleta de promoções", voos: "Busca de preços", resumo: "Resumo diário", limpeza: "Limpeza" };
+  const tarefas = { rss: "Coleta de promoções", voos: "Busca de preços", milhas: "Busca de milhas", explorar: "Explorar", resumo: "Resumo diário", limpeza: "Limpeza" };
   return `
   <div class="row row-cards">
     <div class="col-lg-6"><div class="card"><div class="card-header"><h3 class="card-title">Integrações</h3></div>
@@ -539,11 +656,17 @@ async function telaRadar() {
         <div class="list-group-item d-flex justify-content-between"><span>Preços das rotas (SerpAPI)</span>
           <span class="badge ${s.busca_voos_ativa ? "bg-green-lt" : "bg-yellow-lt"}">${s.busca_voos_ativa ? "A cada " + s.agenda.voos_horas + "h" : "Desligado"}</span></div>
         <div class="list-group-item d-flex justify-content-between"><span>Última cotação</span><span>${esc(hora(s.ultima_cotacao))}</span></div>
+        <div class="list-group-item d-flex justify-content-between"><span>Milhas e Explorar (Seats.aero)</span>
+          <span class="badge ${s.seats_ativo ? "bg-green-lt" : "bg-yellow-lt"}">${s.seats_ativo ? `${s.seats_chamadas_hoje} de 1.000 chamadas hoje` : "Desligado"}</span></div>
+        <div class="list-group-item d-flex justify-content-between"><span>Última coleta de milhas</span><span>${esc(hora(s.ultima_cotacao_milhas))}</span></div>
+        <div class="list-group-item d-flex justify-content-between"><span>Explorar</span><span>${s.explorar_rotas} rotas, ${esc(hora(s.explorar_atualizado))}</span></div>
         <div class="list-group-item d-flex justify-content-between"><span>Posts lidos</span><span>${s.posts}</span></div>
       </div>
       <div class="card-footer d-flex gap-2 flex-wrap">
         <button class="btn btn-primary" data-exec="rss">Coletar promoções agora</button>
         <button class="btn" data-exec="voos">Buscar preços de todas as rotas</button>
+        <button class="btn" data-exec="milhas">Buscar milhas de todas as rotas</button>
+        <button class="btn" data-exec="explorar">Rodar o Explorar agora</button>
         <button class="btn" data-exec="teste">Enviar teste ao Telegram</button>
       </div></div></div>
     <div class="col-lg-6"><div class="card"><div class="card-header"><h3 class="card-title">Blogs monitorados</h3></div>
@@ -564,7 +687,8 @@ async function telaRadar() {
 const TELAS = {
   "/": { titulo: "Início", sub: "Rotas, oportunidades e promoções num só lugar", fn: telaInicio },
   "/rotas": { titulo: "Rotas", sub: "Viagens monitoradas: o alerta chega no Telegram quando o preço cair", fn: telaRotas },
-  "/emissoes": { titulo: "Emissões", sub: "Voos das suas rotas com preço bom para emitir agora", fn: telaEmissoes },
+  "/emissoes": { titulo: "Emissões", sub: "Voos das suas rotas com preço bom para emitir agora, em dinheiro ou em milhas", fn: telaEmissoes },
+  "/explorar": { titulo: "Explorar", sub: "Ofertas de resgate mais baratas por destino, da Seats.aero", fn: telaExplorar },
   "/radar": { titulo: "Radar", sub: "Saúde do monitor, integrações e execução manual", fn: telaRadar },
 };
 for (const [tipo, t] of Object.entries(TIPOS)) TELAS[`/promocoes/${tipo}`] = { titulo: t.nome, sub: t.sub, fn: () => telaPromos(tipo) };
@@ -588,8 +712,10 @@ async function navegar() {
 
 async function contadores() {
   try {
-    const [met, opp, rotas] = await Promise.all([api("GET", "/metricas"), api("GET", "/oportunidades"), api("GET", "/trechos")]);
-    const valores = { ...met.promocoes_7d, oportunidades: opp.voos.filter((v) => v.oportunidade).length, rotas: rotas.length };
+    const [met, opp, rotas, st] = await Promise.all([api("GET", "/metricas"), api("GET", "/oportunidades"), api("GET", "/trechos"), api("GET", "/status")]);
+    STATUS = st;
+    const valores = { ...met.promocoes_7d, rotas: rotas.length, explorar: st.explorar_rotas,
+      oportunidades: opp.voos.filter((v) => v.oportunidade).length + opp.milhas.filter((m) => m.oportunidade).length };
     $$("[data-cont]").forEach((b) => {
       const v = valores[b.dataset.cont] || 0;
       b.textContent = v; b.classList.toggle("d-none", !v);
@@ -620,6 +746,15 @@ $("#form-login").addEventListener("submit", async (e) => {
 $("#btn-sair").addEventListener("click", (e) => { e.preventDefault(); sair(); });
 
 let ULTIMA_BUSCA = null;
+document.addEventListener("submit", (e) => {
+  if (e.target.id !== "form-explorar") return;
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  f.direto = !!f.direto;
+  sessionStorage.setItem("explorar", JSON.stringify(f));
+  navegar();
+});
+
 document.addEventListener("submit", async (e) => {
   if (e.target.id !== "form-busca") return;
   e.preventDefault();
@@ -668,7 +803,8 @@ document.addEventListener("click", async (e) => {
     } else if (b.dataset.exec) {
       b.disabled = true;
       await api("POST", `/executar/${b.dataset.exec}`);
-      aviso({ teste: "Teste enviado ao Telegram", voos: "Buscando preços de todas as rotas", rss: "Coleta iniciada" }[b.dataset.exec] || "Tarefa iniciada");
+      aviso({ teste: "Teste enviado ao Telegram", voos: "Buscando preços de todas as rotas", rss: "Coleta iniciada",
+              milhas: "Buscando milhas na Seats.aero", explorar: "Explorar iniciado: leva alguns segundos por programa" }[b.dataset.exec] || "Tarefa iniciada");
       setTimeout(navegar, b.dataset.exec === "teste" ? 0 : 20000);
     } else if (b.dataset.toggle) {
       const retomar = b.dataset.ativo !== "1";
@@ -680,10 +816,16 @@ document.addEventListener("click", async (e) => {
       aviso("Rota removida"); navegar();
     } else if (b.dataset.precos) {
       await mostrarPrecos(b.dataset.precos);
+    } else if (b.dataset.milhas) {
+      await mostrarMilhas(b.dataset.milhas);
+    } else if (b.dataset.viagem) {
+      await abrirViagem(b.dataset.viagem);
+    } else if (b.hasAttribute("data-fechar")) {
+      b.closest("dialog")?.close();
     } else if (b.dataset.buscar) {
       b.disabled = true;
-      await api("POST", `/trechos/${b.dataset.buscar}/buscar`);
-      aviso("Buscando preços no Google Flights…");
+      const r = await api("POST", `/trechos/${b.dataset.buscar}/buscar`);
+      aviso(`Buscando ${[r.dinheiro && "preços no Google Flights", r.milhas && "milhas na Seats.aero"].filter(Boolean).join(" e ")}…`);
       setTimeout(() => (location.hash === "#/emissoes" ? navegar() : mostrarPrecos(b.dataset.buscar)), 25000);
     }
   } catch (err) { aviso(err.message); }

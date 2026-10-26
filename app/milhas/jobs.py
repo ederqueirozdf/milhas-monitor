@@ -2,10 +2,10 @@ import functools
 import logging
 import threading
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from html import escape
 
-from . import db, flights, notify, rss
+from . import db, flights, notify, rss, seats
 from .config import CONFIG
 from .extract import Extrator, chave_promo, menciona_trecho, normalizar
 
@@ -164,6 +164,137 @@ def _avaliar_voo(t: dict, melhor: flights.Cotacao, hist, cfg: dict):
             )
 
 
+def _pode_realertar(chave: str, valor: float, queda_pct: float) -> bool:
+    """Inédito, ou caiu queda_pct% desde o último alerta, ou o último tem mais de 7 dias."""
+    with db.tx() as c:
+        ultimo = c.execute(
+            "SELECT valor, enviado_em >= datetime('now', '-7 days') AS recente FROM alertas WHERE chave = ?", (chave,)
+        ).fetchone()
+    return not (ultimo and ultimo["recente"] and valor > ultimo["valor"] * (1 - queda_pct / 100))
+
+
+def _gravar_alerta(chave: str, valor: float):
+    with db.tx() as c:
+        c.execute("INSERT OR REPLACE INTO alertas(chave, valor, enviado_em) VALUES (?, ?, CURRENT_TIMESTAMP)", (chave, valor))
+
+
+def resumo_milhas(c, t: dict) -> dict | None:
+    """Melhor oferta de cada sentido na coleta mais recente, total, valor do milheiro e motivos."""
+    cfg = CONFIG.get("seats", {})
+    sentidos = {}
+    for sentido in (["ida", "volta"] if t.get("data_volta") else ["ida"]):
+        ultima = c.execute("SELECT MAX(coletado_em) FROM milhas_cotacoes WHERE trecho_id = ? AND sentido = ?",
+                           (t["id"], sentido)).fetchone()[0]
+        if not ultima:
+            return None
+        melhor = c.execute(
+            "SELECT * FROM milhas_cotacoes WHERE trecho_id = ? AND sentido = ? AND coletado_em = ? ORDER BY milhas LIMIT 1",
+            (t["id"], sentido, ultima)).fetchone()
+        hist = c.execute(
+            "SELECT MIN(milhas) AS minimo, COUNT(DISTINCT coletado_em) AS coletas FROM milhas_cotacoes WHERE trecho_id = ? AND sentido = ?",
+            (t["id"], sentido)).fetchone()
+        sentidos[sentido] = {"melhor": dict(melhor), "minimo": hist["minimo"], "coletas": hist["coletas"], "coletado_em": ultima}
+    total = sum(s["melhor"]["milhas"] for s in sentidos.values())
+    preco = c.execute("SELECT MIN(valor) FROM precos WHERE trecho_id = ? AND coletado_em >= datetime('now', '-3 days')",
+                      (t["id"],)).fetchone()[0]
+    valor = round(preco / (total / 1000), 2) if preco and total else None
+    programas = {s["melhor"]["programa"] for s in sentidos.values()}
+    alvo = CONFIG.get("milheiro_alvo", {}).get(seats.PROGRAMAS.get(programas.pop(), "")) if len(programas) == 1 else None
+    motivos = seats.avaliar(total, t.get("max_milhas"), sum(s["minimo"] for s in sentidos.values()),
+                            min(s["coletas"] for s in sentidos.values()), cfg.get("amostras_historico", 4), valor, alvo)
+    return {"sentidos": sentidos, "total": total, "preco_dinheiro": preco, "valor_milheiro": valor,
+            "alvo": alvo, "motivos": motivos, "oportunidade": bool(motivos)}
+
+
+@exclusivo
+def run_milhas(trecho_id: int | None = None):
+    if not seats.API_KEY:
+        log.info("SEATS_AERO_API_KEY não configurada; busca de milhas desativada")
+        return
+    cfg = CONFIG.get("seats", {})
+    trechos = [t for t in db.trechos_ativos() if trecho_id is None or t["id"] == trecho_id]
+    log.info("buscando milhas de %d trecho(s) na Seats.aero", len(trechos))
+    for t in trechos:
+        pernas = [("ida", t["origem"], t["destino"], t["data_ida"])]
+        if t.get("data_volta"):
+            pernas.append(("volta", t["destino"], t["origem"], t["data_volta"]))
+        for sentido, origem, destino, data_voo in pernas:
+            try:
+                ofertas = seats.buscar_trecho(origem, destino, date.fromisoformat(data_voo), t.get("flex_dias") or 0,
+                                              t.get("cabine") or "economica", cfg.get("programas") or None, t.get("cias"))
+            except Exception as exc:
+                log.warning("milhas trecho #%s (%s) falhou: %s", t["id"], sentido, seats.erro_seguro(exc))
+                continue
+            with db.tx() as c:
+                agora = c.execute("SELECT CURRENT_TIMESTAMP").fetchone()[0]
+                c.executemany(
+                    """INSERT INTO milhas_cotacoes (trecho_id, sentido, data_voo, programa, cabine, milhas, assentos, cias,
+                                                    direto, origem, destino, availability_id, coletado_em)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    [(t["id"], sentido, o.data_voo, o.programa, o.cabine, o.milhas, o.assentos, o.cias, int(o.direto),
+                      o.origem, o.destino, o.availability_id, agora) for o in ofertas[: cfg.get("ofertas_por_sentido", 10)]])
+            log.info("trecho #%s %s: %d ofertas em milhas", t["id"], sentido, len(ofertas))
+        _alertar_milhas(t, cfg)
+
+
+def _alertar_milhas(t: dict, cfg: dict):
+    with db.tx() as c:
+        r = resumo_milhas(c, t)
+    if not r or not r["oportunidade"]:
+        return
+    chave = f"milhas|{t['id']}"
+    if _pode_realertar(chave, r["total"], cfg.get("queda_minima_pct", 5)) and notify.enviar(notify.formatar_milhas(t, r)):
+        _gravar_alerta(chave, r["total"])
+
+
+@exclusivo
+def run_explorar():
+    if not seats.API_KEY:
+        log.info("SEATS_AERO_API_KEY não configurada; Explorar desativado")
+        return
+    cfg = CONFIG.get("explorar", {})
+    hoje = date.today()
+    fim = hoje + timedelta(days=cfg.get("dias", 180))
+    origens = set(cfg.get("origens") or [])
+    limites = cfg.get("limites", {})
+    ano, semana, _ = hoje.isocalendar()
+    achados = []
+    for programa in cfg.get("programas", []):
+        for cabine in cfg.get("cabines", ["economica"]):
+            try:
+                ofertas, chamadas = seats.explorar(programa, cabine, cfg.get("regiao_origem"), hoje, fim, cfg.get("max_paginas", 2))
+            except Exception as exc:
+                log.warning("explorar %s/%s falhou: %s", programa, cabine, seats.erro_seguro(exc))
+                continue
+            melhores: dict[tuple, seats.Oferta] = {}
+            for o in ofertas:
+                if origens and o.origem not in origens:
+                    continue
+                k = (o.origem, o.destino)
+                if k not in melhores or o.milhas < melhores[k].milhas:
+                    melhores[k] = o
+            with db.tx() as c:
+                c.execute("DELETE FROM explorar WHERE programa = ? AND cabine = ?", (programa, cabine))
+                c.executemany(
+                    """INSERT INTO explorar (programa, cabine, origem, destino, regiao_destino, data_voo, milhas, assentos,
+                                             cias, direto, availability_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    [(programa, cabine, o.origem, o.destino, o.regiao_destino, o.data_voo, o.milhas, o.assentos, o.cias,
+                      int(o.direto), o.availability_id) for o in melhores.values()])
+            log.info("explorar %s/%s: %d ofertas, %d rotas, %d chamadas", programa, cabine, len(ofertas), len(melhores), chamadas)
+            for o in melhores.values():
+                limite = limites.get(cabine, {}).get(o.regiao_destino or "")
+                if limite and o.milhas <= limite:
+                    achados.append((o.milhas / limite, o, f"explorar|{programa}|{cabine}|{o.origem}|{o.destino}|{ano}-{semana}"))
+    novos = []
+    for _, o, chave in sorted(achados, key=lambda x: x[0]):
+        if len(novos) >= 10:
+            break
+        if _registrar_alerta(chave, o.milhas):
+            novos.append(o)
+    if novos:
+        notify.enviar(notify.formatar_explorar(novos))
+
+
 @exclusivo
 def run_resumo():
     with db.tx() as c:
@@ -213,6 +344,7 @@ def run_limpeza():
         c.execute("DELETE FROM posts WHERE coletado_em < datetime('now', '-120 days')")
         c.execute("DELETE FROM alertas WHERE enviado_em < datetime('now', '-60 days')")
         c.execute("DELETE FROM precos WHERE coletado_em < datetime('now', '-365 days')")
+        c.execute("DELETE FROM milhas_cotacoes WHERE coletado_em < datetime('now', '-365 days')")
 
 
 def run_teste():

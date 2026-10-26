@@ -56,6 +56,39 @@ CREATE TABLE IF NOT EXISTS precos (
     coletado_em TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS ix_precos_trecho ON precos(trecho_id, coletado_em);
+CREATE TABLE IF NOT EXISTS milhas_cotacoes (
+    id INTEGER PRIMARY KEY,
+    trecho_id INTEGER NOT NULL REFERENCES trechos(id) ON DELETE CASCADE,
+    sentido TEXT NOT NULL,              -- ida | volta
+    data_voo TEXT,
+    programa TEXT,
+    cabine TEXT,
+    milhas INTEGER NOT NULL,
+    assentos INTEGER,
+    cias TEXT,
+    direto INTEGER,
+    origem TEXT,
+    destino TEXT,
+    availability_id TEXT,
+    coletado_em TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_milhas_trecho ON milhas_cotacoes(trecho_id, sentido, coletado_em);
+CREATE TABLE IF NOT EXISTS explorar (
+    id INTEGER PRIMARY KEY,
+    programa TEXT,
+    cabine TEXT,
+    origem TEXT,
+    destino TEXT,
+    regiao_destino TEXT,
+    data_voo TEXT,
+    milhas INTEGER,
+    assentos INTEGER,
+    cias TEXT,
+    direto INTEGER,
+    availability_id TEXT,
+    coletado_em TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_explorar ON explorar(programa, cabine, milhas);
 CREATE TABLE IF NOT EXISTS alertas (
     chave TEXT PRIMARY KEY,
     valor REAL,

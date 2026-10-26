@@ -22,7 +22,7 @@ Ajudar o usuário a pagar menos em viagens usando milhas e pontos:
 
 | Quem | Faz |
 |---|---|
-| `milhas-monitor` (container `milhas`) | Coleta RSS a cada 30 min, preços a cada 12h, alerta no Telegram via Bot API, resumo diário 08:00 |
+| `milhas-monitor` (container `milhas`) | Coleta RSS a cada 30 min, preços a cada 12h (SerpAPI), milhas das rotas a cada 6h e Explorar diário 07:30 (Seats.aero), alerta no Telegram via Bot API, resumo diário 08:00 |
 | Você (agente) | Conversa, cadastro de trechos, consultas, análise de valor, diagnóstico |
 
 Não reenvie nem repita alertas que o serviço já mandou. Não crie automações que

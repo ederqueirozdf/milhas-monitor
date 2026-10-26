@@ -42,6 +42,29 @@ node {baseDir}/milhas.mjs <comando>
 - `tarefas.<nome>.erro` preenchido → a tarefa falhou; sugira `docker compose logs milhas` na VPS.
 - `Falha ao acessar ... fetch failed` → container `milhas` parado ou fora da rede do OpenClaw.
 
+## Milhas (Seats.aero)
+
+O serviço consulta a Seats.aero (dados em cache, 25 programas: **Smiles e Azul sim, LATAM Pass
+não**) a cada 6h para cada rota, e todo dia roda o **Explorar** (ofertas mais baratas saindo
+da América do Sul, Smiles e Azul, econômica e executiva). Alertas chegam sozinhos.
+
+| Pedido do usuário | Comando |
+|---|---|
+| "quanto está em milhas a rota 3?" / "dá pra ir de milhas?" | `milhas 3` |
+| "tem executiva barata pra Europa pela Smiles?" | `explorar --programa smiles --cabine executiva --regiao Europe` |
+| "o que tem de bom saindo de Guarulhos até 50 mil?" | `explorar --origem GRU --max 50000` |
+| "como emito essa?" / "quais os voos dessa oferta?" | `viagem <id_oferta>` (links de emissão e taxas) |
+
+- Regiões aceitas: `South America`, `North America`, `Europe`, `Africa`, `Asia`, `Oceania`.
+- Milhas são **por trecho, sem taxas**. Ao apresentar, some ida+volta e diga "+ taxas"; as
+  taxas reais só aparecem em `viagem`.
+- **Milhas ou dinheiro?** Use o `resumo.valor_milheiro` de `milhas ID` (preço em R$ ÷ milhas)
+  e compare com o milheiro-alvo do programa (USER.md/config). Para contas próprias, use o
+  skill `milhas-valor` (`resgate`/`comparar`). Rende mais que o alvo → milhas; menos → dinheiro.
+- Dados em cache: lembre o usuário de **confirmar no site do programa antes de transferir
+  pontos** — transferência não tem volta.
+- Cota de 1.000 chamadas/dia: `viagem` gasta 1 chamada; não chame para listas inteiras.
+
 ## Cadastro de rota pelo chat (sempre com avaliação)
 
 Pedido típico: "Rota, cadastre uma nova rota para monitorar o preço de São Paulo para
@@ -64,6 +87,9 @@ Buenos Aires". Siga estes passos:
    sai, escalas (ou "direto"), e se vale manter algum aeroporto alternativo. Ofereça
    ajustar (tirar um aeroporto, filtrar cia, definir teto: sugira um teto ~10% abaixo do
    mais barato atual).
+6. **Milhas:** a busca em milhas roda sozinha ao cadastrar. Uns 20 segundos depois, rode
+   `milhas <id>`; se houver oferta, inclua uma linha ("em milhas: 45 mil Smiles + taxas,
+   o milheiro rende R$ 28") e ofereça definir um teto em milhas (`--max-milhas`, total ida+volta).
 
 Se `pesquisar` falhar com "Busca de preços desligada", cadastre mesmo assim e avise que os
 preços dependem da SERPAPI_KEY. Não faça mais de 2 pesquisas por cadastro (cota limitada),

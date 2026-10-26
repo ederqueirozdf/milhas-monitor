@@ -14,6 +14,10 @@ const AJUDA = `Uso:
                     [--cias LA,AD,G3]
   trechos editar ID [mesmas opções de adicionar]
   pesquisar [mesmas opções de adicionar]   (1 busca na SerpAPI; não grava nada)
+  milhas ID                                (ofertas em milhas da rota, Seats.aero)
+  explorar [--programa smiles|azul|...] [--cabine economica|executiva] [--regiao Europe|"North America"|...]
+           [--origem GRU] [--destino LIS] [--max 80000] [--direto] [--limite 15]
+  viagem ID_OFERTA                         (voos, taxas e links de emissão; 1 chamada)
   trechos pausar ID | ativar ID | remover ID
   trechos precos ID
   promocoes [--dias 7] [--tipo transferencia|compra|clube|cartao] [--programa Smiles]
@@ -89,6 +93,28 @@ async function main() {
       opcoes: res.opcoes.map((x) => ({ preco: x.preco, cias: x.cias, de: x.de, para: x.para,
         paradas: x.paradas, escalas: x.escalas, duracao_h: x.duracao_min ? +(x.duracao_min / 60).toFixed(1) : null })),
     };
+  } else if (grupo === "milhas" && acao) {
+    // milhas ID: ofertas em milhas (Seats.aero) da rota, coleta mais recente
+    const res = await api("GET", `/trechos/${acao}/milhas`);
+    const enxuto = (l) => l.slice(0, 5).map((x) => ({ milhas: x.milhas, programa: x.programa, data: x.data_voo, de: x.origem,
+      para: x.destino, cias: x.cias, direto: !!x.direto, assentos: x.assentos, id_oferta: x.availability_id }));
+    r = { seats_ativo: res.seats_ativo, resumo: res.resumo && { total: res.resumo.total, preco_dinheiro: res.resumo.preco_dinheiro,
+          valor_milheiro: res.resumo.valor_milheiro, alvo: res.resumo.alvo, motivos: res.resumo.motivos },
+          ida: enxuto(res.ofertas.ida), volta: enxuto(res.ofertas.volta) };
+  } else if (grupo === "explorar") {
+    // explorar [--programa smiles] [--cabine executiva] [--regiao Europe] [--origem GRU] [--destino LIS] [--max 80000] [--direto]
+    const p = opcoes(process.argv.slice(3));
+    const q = new URLSearchParams({ limite: String(p.limite || 15) });
+    for (const [k, v] of [["programa", p.programa], ["cabine", p.cabine], ["regiao", p.regiao], ["origem", p.origem],
+                          ["destino", p.destino], ["max_milhas", p.max]]) if (typeof v === "string") q.set(k, v);
+    if (p.direto) q.set("direto", "true");
+    const res = await api("GET", `/explorar?${q}`);
+    r = { atualizado_em: res.atualizado_em, total_no_retrato: res.total, seats_ativo: res.seats_ativo,
+          ofertas: res.ofertas.map((x) => ({ de: x.origem, para: x.destino, regiao: x.regiao_destino, data: x.data_voo,
+            programa: x.programa, cabine: x.cabine, milhas: x.milhas, cias: x.cias, direto: !!x.direto, id_oferta: x.availability_id })) };
+  } else if (grupo === "viagem" && acao) {
+    // viagem ID_OFERTA: voos, taxas e links de emissão (1 chamada à Seats.aero)
+    r = await api("GET", `/seats/viagem/${encodeURIComponent(acao)}`);
   } else if (grupo === "promocoes") {
     const p = opcoes(process.argv.slice(3));
     const q = new URLSearchParams();

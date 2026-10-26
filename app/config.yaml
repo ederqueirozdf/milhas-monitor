@@ -61,6 +61,28 @@ milheiro_alvo:
   TAP Miles&Go: 30
   Iberia Plus: 40
 
+# Seats.aero (disponibilidade de resgate em milhas, dados em cache; plano Pro = 1.000 chamadas/dia)
+seats:
+  milhas_horas: 6            # busca de milhas das rotas (1 chamada por sentido)
+  programas: []              # vazio = todos; ex.: [smiles, azul, aeroplan, flyingblue]
+  ofertas_por_sentido: 10    # quantas ofertas guardar por rota/sentido em cada coleta
+  amostras_historico: 4      # mínimo de coletas para alertar "menor já visto"
+  queda_minima_pct: 5        # só re-alerta se cair X% abaixo do último alerta
+
+# "Explorar" da Seats.aero: ofertas baratas por região, um programa por vez.
+explorar:
+  horario: "07:30"
+  programas: [smiles, azul]
+  cabines: [economica, executiva]
+  regiao_origem: South America       # North America | South America | Africa | Asia | Europe | Oceania
+  origens: [GRU, CGH, VCP, GIG, SDU, BSB, CNF, REC, SSA, FOR, POA, CWB, FLN]   # vazio = toda a região
+  dias: 180                          # janela de datas a partir de hoje
+  max_paginas: 2                     # até 1.000 ofertas por página
+  # Alerta imediato quando a oferta fica no limite ou abaixo (milhas, só ida). Referência inicial, ajuste.
+  limites:
+    economica: {South America: 20000, North America: 45000, Europe: 60000, Africa: 60000, Asia: 90000, Oceania: 100000}
+    executiva: {South America: 50000, North America: 100000, Europe: 130000, Africa: 130000, Asia: 180000, Oceania: 200000}
+
 voos:
   max_buscas_por_trecho: 2   # datas consultadas por execução (data exata + sorteio na flex)
   queda_minima_pct: 5        # só re-alerta se cair X% abaixo do último alerta

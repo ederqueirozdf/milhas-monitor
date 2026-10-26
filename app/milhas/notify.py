@@ -95,6 +95,52 @@ def formatar_post_trecho(t: dict, titulo: str, url: str, fonte: str) -> str:
     )
 
 
+CABINE_NOME = {"economica": "econômica", "premium": "premium", "executiva": "executiva", "primeira": "primeira"}
+
+
+def _milhas_txt(n: int) -> str:
+    return f"{n:,}".replace(",", ".")
+
+
+def _dia(iso: str) -> str:
+    return f"{iso[8:10]}/{iso[5:7]}" if iso and len(iso) >= 10 else ""
+
+
+def _oferta_txt(o: dict, programa_nome: str) -> str:
+    extras = [o.get("cias") or "", "direto" if o.get("direto") else "com conexão"]
+    if o.get("assentos"):
+        extras.append(f"{o['assentos']} assento(s)")
+    return (f"<b>{_milhas_txt(o['milhas'])} milhas</b> {escape(programa_nome)}, {escape(_dia(o['data_voo']))} "
+            f"{escape(o.get('origem', ''))}→{escape(o.get('destino', ''))}, " + escape(", ".join(e for e in extras if e)))
+
+
+def formatar_milhas(t: dict, r: dict) -> str:
+    from .seats import PROGRAMAS
+    linhas = ["🎫 <b>Resgate em milhas na sua rota</b>", escape(descrever_trecho(t))]
+    for sentido, s in r["sentidos"].items():
+        o = s["melhor"]
+        linhas.append(f"{'Ida' if sentido == 'ida' else 'Volta'}: " + _oferta_txt(o, PROGRAMAS.get(o["programa"], o["programa"])))
+    if len(r["sentidos"]) > 1:
+        linhas.append(f"Total: <b>{_milhas_txt(r['total'])} milhas</b> + taxas")
+    if r.get("valor_milheiro"):
+        linhas.append(f"Em dinheiro: {_reais(r['preco_dinheiro'])}, cada milheiro rende {_reais(r['valor_milheiro'])}")
+    linhas.append("📉 " + escape("; ".join(r["motivos"])))
+    linhas.append("Detalhes e links de emissão no painel, em Emissões.")
+    return "\n".join(linhas)
+
+
+def formatar_explorar(ofertas: list) -> str:
+    from .seats import PROGRAMAS, REGIOES
+    linhas = ["🧭 <b>Achados do Explorar (Seats.aero)</b>"]
+    for o in ofertas:
+        linhas.append(
+            f"• {escape(o.origem)}→{escape(o.destino)} ({escape(REGIOES.get(o.regiao_destino or '', o.regiao_destino or ''))}), "
+            f"{escape(_dia(o.data_voo))}: <b>{_milhas_txt(o.milhas)}</b> {escape(PROGRAMAS.get(o.programa, o.programa))}, "
+            f"{CABINE_NOME.get(o.cabine, o.cabine)}{', direto' if o.direto else ''}")
+    linhas.append("Só ida, sem taxas. Veja todos no painel, em Explorar.")
+    return "\n".join(linhas)
+
+
 def formatar_voo(t: dict, c, motivo: str) -> str:
     datas = c.data_ida + (f" ↔ {c.data_volta}" if c.data_volta else "")
     linhas = [
