@@ -62,7 +62,10 @@ milheiro_alvo:
   Iberia Plus: 40
 
 # Seats.aero (disponibilidade de resgate em milhas, dados em cache; plano Pro = 1.000 chamadas/dia)
+# fonte: auto = API se houver SEATS_AERO_API_KEY, senão MCP (e MCP também se a API falhar)
+#        api  = só API      mcp = só MCP (com login OAuth usa a conta Pro; sem login, público até 60 dias)
 seats:
+  fonte: auto
   milhas_horas: 6            # busca de milhas das rotas (1 chamada por sentido)
   programas: []              # vazio = todos; ex.: [smiles, azul, aeroplan, flyingblue]
   ofertas_por_sentido: 10    # quantas ofertas guardar por rota/sentido em cada coleta
@@ -77,7 +80,14 @@ explorar:
   regiao_origem: South America       # North America | South America | Africa | Asia | Europe | Oceania
   origens: [GRU, CGH, VCP, GIG, SDU, BSB, CNF, REC, SSA, FOR, POA, CWB, FLN]   # vazio = toda a região
   dias: 180                          # janela de datas a partir de hoje
-  max_paginas: 2                     # até 1.000 ofertas por página
+  max_paginas: 2                     # API: até 1.000 ofertas por página
+  # MCP não busca por região: uma busca por grupo de destinos (e por janela de 60 dias).
+  destinos_mcp:
+    South America: [EZE, AEP, SCL, MVD, LIM, BOG, PUJ, CUN]
+    North America: [MIA, FLL, MCO, JFK, EWR, LAX, YYZ, MEX]
+    Europe: [LIS, OPO, MAD, BCN, CDG, FCO, MXP, LHR, AMS, FRA, IST]
+    Asia: [DXB, DOH, NRT, HND]
+    Africa: [JNB, CPT, ADD]
   # Alerta imediato quando a oferta fica no limite ou abaixo (milhas, só ida). Referência inicial, ajuste.
   limites:
     economica: {South America: 20000, North America: 45000, Europe: 60000, Africa: 60000, Asia: 90000, Oceania: 100000}

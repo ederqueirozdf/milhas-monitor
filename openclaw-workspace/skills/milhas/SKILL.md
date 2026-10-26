@@ -44,9 +44,11 @@ node {baseDir}/milhas.mjs <comando>
 
 ## Milhas (Seats.aero)
 
-O serviço consulta a Seats.aero (dados em cache, 25 programas: **Smiles e Azul sim, LATAM Pass
+O serviço consulta a Seats.aero (dados em cache, 25+ programas: **Smiles e Azul sim, LATAM Pass
 não**) a cada 6h para cada rota, e todo dia roda o **Explorar** (ofertas mais baratas saindo
-da América do Sul, Smiles e Azul, econômica e executiva). Alertas chegam sozinhos.
+do Brasil, Smiles e Azul, econômica e executiva). Alertas chegam sozinhos. A fonte é a API
+(chave) ou o MCP (com login = conta Pro; sem login = público, só 60 dias) — `status` mostra
+`seats_fonte`.
 
 | Pedido do usuário | Comando |
 |---|---|
@@ -64,6 +66,27 @@ da América do Sul, Smiles e Azul, econômica e executiva). Alertas chegam sozin
 - Dados em cache: lembre o usuário de **confirmar no site do programa antes de transferir
   pontos** — transferência não tem volta.
 - Cota de 1.000 chamadas/dia: `viagem` gasta 1 chamada; não chame para listas inteiras.
+
+### Ferramentas do MCP `seats` (direto na Seats.aero)
+
+Além do skill, você tem o servidor MCP `seats` conectado. Use-o para perguntas **pontuais**
+que o monitor não guarda; para rotas monitoradas e o Explorar, prefira o skill (dados já
+coletados, sem gastar cota).
+
+| Pergunta | Ferramenta do MCP |
+|---|---|
+| "minha Livelo/Esfera transfere pra quais programas? em que proporção?" | `list_transfer_program_mileage_programs` (`transfer_program: livelo` ou `esfera`) |
+| "quem transfere pra Smiles?" | `list_transfer_partners` (`mileage_program: smiles`) |
+| "tem voo de milhas Rio → Santiago semana que vem, só direto, até 30 mil?" | `get_flights` (origins, destinations, start_date, end_date, `max_stops: 0`, `max_points: 30000`) |
+| "detalha esse voo" | `get_flight_details` (`flight_ref`) |
+| "qual o código do aeroporto de Bariloche?" | `search_airports` |
+
+- Sem login OAuth o MCP só alcança **60 dias** à frente (`get_capabilities` mostra o limite).
+  Para datas mais distantes, use o skill (`milhas`, `explorar`), que usa a conta Pro.
+- `max_stops` padrão do `get_flights` é 0 (só direto): passe 1 ou 2 se o usuário aceitar conexão.
+- Taxas vêm na moeda do programa (ex.: "$13.60 USD", "R$104.52 BRL"); diga a moeda.
+- Proporção de transferência (`base_ratio`): 1 = 1 ponto vira 1 milha; 0,2857 = 3,5 pontos por milha.
+  Promoções de bônus mudam isso: confira `promocoes --tipo transferencia` antes de recomendar.
 
 ## Cadastro de rota pelo chat (sempre com avaliação)
 

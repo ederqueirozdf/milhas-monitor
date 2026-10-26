@@ -89,6 +89,11 @@ CREATE TABLE IF NOT EXISTS explorar (
     coletado_em TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS ix_explorar ON explorar(programa, cabine, milhas);
+CREATE TABLE IF NOT EXISTS kv (
+    chave TEXT PRIMARY KEY,
+    valor TEXT,
+    atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS alertas (
     chave TEXT PRIMARY KEY,
     valor REAL,
@@ -117,7 +122,23 @@ def tx():
 MIGRACOES = {
     # tabela: [(coluna, definição)] — colunas adicionadas depois da primeira versão
     "trechos": [("cias", "TEXT")],
+    "milhas_cotacoes": [("taxas", "TEXT"), ("fonte", "TEXT")],
+    "explorar": [("taxas", "TEXT"), ("fonte", "TEXT")],
 }
+
+
+def kv_get(chave: str) -> str | None:
+    with tx() as c:
+        row = c.execute("SELECT valor FROM kv WHERE chave = ?", (chave,)).fetchone()
+    return row["valor"] if row else None
+
+
+def kv_set(chave: str, valor: str | None) -> None:
+    with tx() as c:
+        if valor is None:
+            c.execute("DELETE FROM kv WHERE chave = ?", (chave,))
+        else:
+            c.execute("INSERT OR REPLACE INTO kv (chave, valor, atualizado_em) VALUES (?, ?, CURRENT_TIMESTAMP)", (chave, valor))
 
 
 def init() -> None:

@@ -80,6 +80,23 @@ cd /docker/openclaw-milhas && docker compose up -d
 
 Teste no Telegram: *"monitora Brasília → Lisboa, ida 10/05/2027 volta 25/05, executiva, até R$ 6 mil"*.
 
+## Seats.aero: API ou MCP
+
+Milhas por rota e Explorar vêm da Seats.aero por duas fontes (`seats.fonte` no `config.yaml`):
+
+| Fonte | Como ativar | Alcance |
+|---|---|---|
+| API | `SEATS_AERO_API_KEY` no `.env` (seats.aero/settings → API) | Conta Pro, Explorar nativo por região |
+| MCP com login | `docker exec -it milhas python -m milhas.mcp_login` (uma vez) | Conta Pro, mesma cota de 1.000/dia |
+| MCP público | nada | Só voos até 60 dias à frente |
+
+Com `fonte: auto` (padrão) o serviço usa a API se houver chave, senão o MCP, e cai para o MCP
+se a API falhar. O login guarda um refresh token (renovado a cada uso) no SQLite; para sair:
+`docker exec -it milhas python -m milhas.mcp_login --sair`. O Radar do painel mostra a fonte ativa.
+
+O OpenClaw também tem o servidor MCP `seats` conectado (ferramentas direto no chat). Para
+usar a conta Pro nele: `openclaw mcp configure seats --auth oauth` e `openclaw mcp login seats`.
+
 ## Ajustes
 
 Tudo fica em `app/config.yaml`: frequências, feeds, programas e apelidos, mapa IATA→cidade e

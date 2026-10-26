@@ -516,14 +516,14 @@ async function telaEmissoes() {
 function ofertaMilhas(o) {
   if (!o) return `<span class="text-secondary">—</span>`;
   return `<span class="milhas-num">${milhasTxt(o.milhas)}</span> <span class="small">${esc(PROG[o.programa] || o.programa)}</span>
-    <div class="small text-secondary">${dia(o.data_voo)}, ${esc(o.origem)}→${esc(o.destino)}, ${esc(o.cias || "")}${o.direto ? ", direto" : ""}${o.assentos ? `, ${o.assentos} assento(s)` : ""}</div>
+    <div class="small text-secondary">${dia(o.data_voo)}, ${esc(o.origem)}→${esc(o.destino)}, ${esc(o.cias || "")}${o.direto ? ", direto" : ""}${o.assentos ? `, ${o.assentos} assento(s)` : ""}${o.taxas ? `, taxas ${esc(o.taxas)}` : ""}</div>
     ${o.availability_id ? `<button class="btn-link-sm" data-viagem="${esc(o.availability_id)}">Voos e emissão</button>` : ""}`;
 }
 
 function cardMilhas(r) {
   const titulo = `<div class="card-header"><h3 class="card-title">Resgates em milhas</h3>
-    <div class="card-actions text-secondary small">Seats.aero, dados em cache, sem taxas</div></div>`;
-  if (!r.seats_ativo) return `<div class="card mb-4">${titulo}<div class="card-body text-secondary">Integração desligada: falta a SEATS_AERO_API_KEY no .env do milhas-monitor.</div></div>`;
+    <div class="card-actions text-secondary small">Seats.aero, dados em cache; taxas quando a fonte informa</div></div>`;
+  if (!r.seats_ativo) return `<div class="card mb-4">${titulo}<div class="card-body text-secondary">Integração desligada: config com fonte 'api' e sem SEATS_AERO_API_KEY no .env.</div></div>`;
   if (!r.milhas.length) return `<div class="card mb-4">${titulo}<div class="card-body text-secondary">Nenhuma oferta em milhas coletada ainda para as suas rotas. A busca roda a cada 6h; toque em “Atualizar” numa rota para buscar agora.</div></div>`;
   return `<div class="card mb-4">${titulo}<div class="table-responsive"><table class="table table-vcenter card-table">
     <thead><tr><th>Rota</th><th>Ida</th><th>Volta</th><th class="text-end">Total</th><th class="text-end">Valor do milheiro</th><th>Por quê</th></tr></thead>
@@ -558,16 +558,16 @@ async function telaExplorar() {
     <div class="col-6 col-md-1"><label class="form-check mb-2"><input class="form-check-input" type="checkbox" name="direto" ${f.direto ? "checked" : ""}><span class="form-check-label">Só diretos</span></label></div>
     <div class="col-6 col-md-1"><button class="btn btn-primary w-100">Filtrar</button></div>
   </div></div></form>`;
-  if (!r.seats_ativo && !r.total) return filtros + `<div class="alert alert-warning">Integração desligada: falta a SEATS_AERO_API_KEY no .env do milhas-monitor.</div>`;
+  if (!r.seats_ativo && !r.total) return filtros + `<div class="alert alert-warning">Integração desligada: config com fonte 'api' e sem SEATS_AERO_API_KEY no .env.</div>`;
   const linhas = r.ofertas.map((o) => `<tr>
     <td><span class="rota-iata">${esc(o.origem)} → ${esc(o.destino)}</span><div class="small text-secondary">${esc(CIDADES[o.destino] || "")}${CIDADES[o.destino] ? ", " : ""}${esc(REGIAO[o.regiao_destino] || o.regiao_destino || "")}</div></td>
     <td>${dia(o.data_voo)}</td>
     <td>${esc(PROG[o.programa] || o.programa)}<div class="small text-secondary">${esc(CABINE[o.cabine] || o.cabine)}</div></td>
     <td>${esc(o.cias || "")}<div class="small ${o.direto ? "text-green" : "text-secondary"}">${o.direto ? "direto" : "com conexão"}</div></td>
-    <td class="text-end"><span class="milhas-num">${milhasTxt(o.milhas)}</span>${o.assentos ? `<div class="small text-secondary">${o.assentos} assento(s)</div>` : ""}</td>
+    <td class="text-end"><span class="milhas-num">${milhasTxt(o.milhas)}</span><div class="small text-secondary">${[o.taxas && "+ " + esc(o.taxas), o.assentos && o.assentos + " assento(s)"].filter(Boolean).join(", ")}</div></td>
     <td class="text-end"><button class="btn btn-sm" data-viagem="${esc(o.availability_id)}">Voos e emissão</button></td></tr>`).join("");
   return filtros + `<div class="card"><div class="card-header"><h3 class="card-title">${r.ofertas.length} de ${r.total} ofertas</h3>
-    <div class="card-actions text-secondary small">Mais barata por rota, só ida, sem taxas. Atualizado ${esc(hora(r.atualizado_em))}</div></div>
+    <div class="card-actions text-secondary small">Mais barata por programa e rota, só ida. Atualizado ${esc(hora(r.atualizado_em))}</div></div>
     ${r.ofertas.length ? `<div class="table-responsive"><table class="table table-vcenter card-table">
       <thead><tr><th>Rota</th><th>Data</th><th>Programa</th><th>Companhia</th><th class="text-end">Milhas</th><th></th></tr></thead>
       <tbody>${linhas}</tbody></table></div>`
@@ -601,7 +601,7 @@ async function abrirViagem(id) {
 async function mostrarMilhas(id) {
   const r = await api("GET", `/trechos/${id}/milhas`);
   const alvo = $(`#precos-${id}`); if (!alvo) return;
-  if (!r.seats_ativo) { alvo.textContent = "Milhas desligadas: falta a SEATS_AERO_API_KEY."; return; }
+  if (!r.seats_ativo) { alvo.textContent = "Milhas desligadas: fonte 'api' sem SEATS_AERO_API_KEY."; return; }
   if (!r.resumo) { alvo.textContent = "Nenhuma oferta em milhas ainda. Toque em “Buscar agora”."; return; }
   const s = r.resumo.sentidos;
   const parte = (n, x) => x ? `${n}: ${milhasTxt(x.melhor.milhas)} ${PROG[x.melhor.programa] || x.melhor.programa} (${dia(x.melhor.data_voo)})` : "";
@@ -658,6 +658,9 @@ async function telaRadar() {
         <div class="list-group-item d-flex justify-content-between"><span>Última cotação</span><span>${esc(hora(s.ultima_cotacao))}</span></div>
         <div class="list-group-item d-flex justify-content-between"><span>Milhas e Explorar (Seats.aero)</span>
           <span class="badge ${s.seats_ativo ? "bg-green-lt" : "bg-yellow-lt"}">${s.seats_ativo ? `${s.seats_chamadas_hoje} de 1.000 chamadas hoje` : "Desligado"}</span></div>
+        <div class="list-group-item d-flex justify-content-between gap-2"><span>Fonte da Seats.aero</span>
+          <span class="text-end">${{ api: "API (chave)", "mcp-pro": "MCP com login (conta Pro)", "mcp-publico": "MCP público (até 60 dias)", desligado: "Desligada" }[s.seats_fonte] || esc(s.seats_fonte)}
+          ${s.seats_mcp_erro ? `<div class="small text-red">${esc(s.seats_mcp_erro)}</div>` : ""}</span></div>
         <div class="list-group-item d-flex justify-content-between"><span>Última coleta de milhas</span><span>${esc(hora(s.ultima_cotacao_milhas))}</span></div>
         <div class="list-group-item d-flex justify-content-between"><span>Explorar</span><span>${s.explorar_rotas} rotas, ${esc(hora(s.explorar_atualizado))}</span></div>
         <div class="list-group-item d-flex justify-content-between"><span>Posts lidos</span><span>${s.posts}</span></div>

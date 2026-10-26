@@ -33,6 +33,11 @@ Carregar só na sessão principal. Resumo curado, não log.
   América do Sul, econômica e executiva, limites por região no config.yaml), detalhes e links
   de emissão sob demanda. LATAM Pass não é suportado pela Seats.aero. Versão anterior: tag
   `v1.0.0-pre-seats` (backup privado de banco e .env em `/root/backups/` na VPS).
+- 2026-10-26: Seats.aero também via MCP (`https://seats.aero/mcp`). No milhas-monitor,
+  `seats.fonte: auto` usa API se houver chave, senão MCP (OAuth = conta Pro; público = 60 dias),
+  e cai para o MCP se a API falhar. Login do serviço: `docker exec -it milhas python -m
+  milhas.mcp_login`. No OpenClaw, servidor MCP `seats` (8 ferramentas; público até fazer
+  `openclaw mcp login seats`).
 
 ## Próximas fases
 

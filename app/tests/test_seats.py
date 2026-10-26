@@ -31,6 +31,7 @@ def test_buscar_trecho_monta_parametros_e_ordena(monkeypatch):
         chamadas.append((caminho, params))
         return {"data": [av("b", "GRU", "EZE", "2027-03-16", y=30000), av("a", "VCP", "AEP", "2027-03-15", y=18000)]}
 
+    monkeypatch.setattr(seats, "API_KEY", "x")
     monkeypatch.setattr(seats, "_get", falso)
     ida = date.today() + timedelta(days=100)
     ofertas = seats.buscar_trecho("SAO", "BUE", ida, 2, "economica", ["smiles", "azul"], "G3,AD")
@@ -51,7 +52,7 @@ def test_explorar_pagina_e_remove_repetidos(monkeypatch):
     ]
     recebidos = []
     monkeypatch.setattr(seats, "_get", lambda c, p: (recebidos.append(dict(p)), paginas[len(recebidos) - 1])[1])
-    ofertas, chamadas = seats.explorar("smiles", "economica", "South America", date.today(), date.today() + timedelta(days=90))
+    ofertas, chamadas = seats._api_explorar("smiles", "economica", "South America", date.today(), date.today() + timedelta(days=90))
     assert chamadas == 2
     assert sorted(o.availability_id for o in ofertas) == ["1", "2", "3"]
     assert recebidos[1]["cursor"] == 1700000000 and recebidos[1]["skip"] == 2

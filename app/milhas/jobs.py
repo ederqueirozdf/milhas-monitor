@@ -208,12 +208,12 @@ def resumo_milhas(c, t: dict) -> dict | None:
 
 @exclusivo
 def run_milhas(trecho_id: int | None = None):
-    if not seats.API_KEY:
-        log.info("SEATS_AERO_API_KEY não configurada; busca de milhas desativada")
+    if seats.fonte_ativa() == "desligado":
+        log.info("Seats.aero desligada (fonte: api sem SEATS_AERO_API_KEY)")
         return
     cfg = CONFIG.get("seats", {})
     trechos = [t for t in db.trechos_ativos() if trecho_id is None or t["id"] == trecho_id]
-    log.info("buscando milhas de %d trecho(s) na Seats.aero", len(trechos))
+    log.info("buscando milhas de %d trecho(s) na Seats.aero (%s)", len(trechos), seats.fonte_ativa())
     for t in trechos:
         pernas = [("ida", t["origem"], t["destino"], t["data_ida"])]
         if t.get("data_volta"):
@@ -229,10 +229,11 @@ def run_milhas(trecho_id: int | None = None):
                 agora = c.execute("SELECT CURRENT_TIMESTAMP").fetchone()[0]
                 c.executemany(
                     """INSERT INTO milhas_cotacoes (trecho_id, sentido, data_voo, programa, cabine, milhas, assentos, cias,
-                                                    direto, origem, destino, availability_id, coletado_em)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                                    direto, origem, destino, availability_id, taxas, fonte, coletado_em)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     [(t["id"], sentido, o.data_voo, o.programa, o.cabine, o.milhas, o.assentos, o.cias, int(o.direto),
-                      o.origem, o.destino, o.availability_id, agora) for o in ofertas[: cfg.get("ofertas_por_sentido", 10)]])
+                      o.origem, o.destino, o.availability_id, o.taxas, o.fonte, agora)
+                     for o in ofertas[: cfg.get("ofertas_por_sentido", 10)]])
             log.info("trecho #%s %s: %d ofertas em milhas", t["id"], sentido, len(ofertas))
         _alertar_milhas(t, cfg)
 
@@ -249,8 +250,8 @@ def _alertar_milhas(t: dict, cfg: dict):
 
 @exclusivo
 def run_explorar():
-    if not seats.API_KEY:
-        log.info("SEATS_AERO_API_KEY não configurada; Explorar desativado")
+    if seats.fonte_ativa() == "desligado":
+        log.info("Seats.aero desligada; Explorar não roda")
         return
     cfg = CONFIG.get("explorar", {})
     hoje = date.today()
@@ -259,32 +260,31 @@ def run_explorar():
     limites = cfg.get("limites", {})
     ano, semana, _ = hoje.isocalendar()
     achados = []
-    for programa in cfg.get("programas", []):
-        for cabine in cfg.get("cabines", ["economica"]):
-            try:
-                ofertas, chamadas = seats.explorar(programa, cabine, cfg.get("regiao_origem"), hoje, fim, cfg.get("max_paginas", 2))
-            except Exception as exc:
-                log.warning("explorar %s/%s falhou: %s", programa, cabine, seats.erro_seguro(exc))
+    for cabine in cfg.get("cabines", ["economica"]):
+        try:
+            ofertas, chamadas, fonte = seats.explorar_cabine(cabine, hoje, fim)
+        except Exception as exc:
+            log.warning("explorar %s falhou: %s", cabine, seats.erro_seguro(exc))
+            continue
+        melhores: dict[tuple, seats.Oferta] = {}
+        for o in ofertas:
+            if origens and o.origem not in origens:
                 continue
-            melhores: dict[tuple, seats.Oferta] = {}
-            for o in ofertas:
-                if origens and o.origem not in origens:
-                    continue
-                k = (o.origem, o.destino)
-                if k not in melhores or o.milhas < melhores[k].milhas:
-                    melhores[k] = o
-            with db.tx() as c:
-                c.execute("DELETE FROM explorar WHERE programa = ? AND cabine = ?", (programa, cabine))
-                c.executemany(
-                    """INSERT INTO explorar (programa, cabine, origem, destino, regiao_destino, data_voo, milhas, assentos,
-                                             cias, direto, availability_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    [(programa, cabine, o.origem, o.destino, o.regiao_destino, o.data_voo, o.milhas, o.assentos, o.cias,
-                      int(o.direto), o.availability_id) for o in melhores.values()])
-            log.info("explorar %s/%s: %d ofertas, %d rotas, %d chamadas", programa, cabine, len(ofertas), len(melhores), chamadas)
-            for o in melhores.values():
-                limite = limites.get(cabine, {}).get(o.regiao_destino or "")
-                if limite and o.milhas <= limite:
-                    achados.append((o.milhas / limite, o, f"explorar|{programa}|{cabine}|{o.origem}|{o.destino}|{ano}-{semana}"))
+            k = (o.programa, o.origem, o.destino)
+            if k not in melhores or o.milhas < melhores[k].milhas:
+                melhores[k] = o
+        with db.tx() as c:
+            c.execute("DELETE FROM explorar WHERE cabine = ?", (cabine,))
+            c.executemany(
+                """INSERT INTO explorar (programa, cabine, origem, destino, regiao_destino, data_voo, milhas, assentos,
+                                         cias, direto, availability_id, taxas, fonte) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                [(o.programa, cabine, o.origem, o.destino, o.regiao_destino, o.data_voo, o.milhas, o.assentos, o.cias,
+                  int(o.direto), o.availability_id, o.taxas, o.fonte) for o in melhores.values()])
+        log.info("explorar %s via %s: %d ofertas, %d rotas, %d chamadas", cabine, fonte, len(ofertas), len(melhores), chamadas)
+        for o in melhores.values():
+            limite = limites.get(cabine, {}).get(o.regiao_destino or "")
+            if limite and o.milhas <= limite:
+                achados.append((o.milhas / limite, o, f"explorar|{o.programa}|{cabine}|{o.origem}|{o.destino}|{ano}-{semana}"))
     novos = []
     for _, o, chave in sorted(achados, key=lambda x: x[0]):
         if len(novos) >= 10:

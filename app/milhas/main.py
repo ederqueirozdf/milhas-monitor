@@ -187,8 +187,10 @@ def status():
         **dict(contagens),
         "telegram_configurado": bool(notify.TOKEN and notify.CHAT_ID),
         "busca_voos_ativa": bool(flights.SERPAPI_KEY),
-        "seats_ativo": bool(seats.API_KEY),
-        "seats_chamadas_hoje": seats.CHAMADAS["n"],
+        "seats_ativo": seats.fonte_ativa() != "desligado",
+        "seats_chamadas_hoje": seats.chamadas_hoje(),
+        "seats_fonte": seats.fonte_ativa(),
+        "seats_mcp_erro": db.kv_get("seats_mcp_erro"),
         "agenda": CONFIG["agenda"],
         **jobs.ESTADO,
     }
@@ -210,7 +212,7 @@ def criar_trecho(t: TrechoIn, bg: BackgroundTasks):
         novo = _trecho(c, cur.lastrowid)
     if flights.SERPAPI_KEY:
         bg.add_task(jobs.run_voos, novo["id"])
-    if seats.API_KEY:
+    if seats.fonte_ativa() != "desligado":
         bg.add_task(jobs.run_milhas, novo["id"])
     return novo
 
@@ -218,7 +220,7 @@ def criar_trecho(t: TrechoIn, bg: BackgroundTasks):
 @app.post("/trechos/{trecho_id}/buscar", status_code=202, dependencies=[Depends(autenticar)])
 def buscar_precos(trecho_id: int, bg: BackgroundTasks):
     """Busca preço em dinheiro (SerpAPI) e em milhas (Seats.aero) do trecho, conforme as chaves configuradas."""
-    if not flights.SERPAPI_KEY and not seats.API_KEY:
+    if not flights.SERPAPI_KEY and seats.fonte_ativa() == "desligado":
         raise HTTPException(409, "Busca desligada: falta SERPAPI_KEY ou SEATS_AERO_API_KEY no .env do milhas-monitor")
     with db.tx() as c:
         t = _trecho(c, trecho_id)
@@ -226,9 +228,9 @@ def buscar_precos(trecho_id: int, bg: BackgroundTasks):
         raise HTTPException(409, "Rota pausada: retome antes de buscar preços")
     if flights.SERPAPI_KEY:
         bg.add_task(jobs.run_voos, trecho_id)
-    if seats.API_KEY:
+    if seats.fonte_ativa() != "desligado":
         bg.add_task(jobs.run_milhas, trecho_id)
-    return {"agendada": trecho_id, "dinheiro": bool(flights.SERPAPI_KEY), "milhas": bool(seats.API_KEY)}
+    return {"agendada": trecho_id, "dinheiro": bool(flights.SERPAPI_KEY), "milhas": seats.fonte_ativa() != "desligado"}
 
 
 @app.get("/trechos/{trecho_id}/milhas", dependencies=[Depends(autenticar)])
@@ -243,7 +245,7 @@ def milhas_trecho(trecho_id: int):
                      (SELECT MAX(coletado_em) FROM milhas_cotacoes WHERE trecho_id = ? AND sentido = ?)
                    ORDER BY milhas""", (trecho_id, sentido, trecho_id, sentido))]
         resumo = jobs.resumo_milhas(c, t)
-    return {"trecho": t, "resumo": resumo, "ofertas": ofertas, "seats_ativo": bool(seats.API_KEY)}
+    return {"trecho": t, "resumo": resumo, "ofertas": ofertas, "seats_ativo": seats.fonte_ativa() != "desligado"}
 
 
 @app.get("/explorar", dependencies=[Depends(autenticar)])
@@ -270,15 +272,15 @@ def listar_explorar(programa: str | None = None, cabine: str | None = None, regi
         linhas = [dict(r) for r in c.execute(sql + " ORDER BY milhas LIMIT ?", (*params, min(limite, 1000)))]
         meta = c.execute("SELECT MAX(coletado_em) AS atualizado, COUNT(*) AS total FROM explorar").fetchone()
     return {"ofertas": linhas, "atualizado_em": meta["atualizado"], "total": meta["total"],
-            "programas": seats.PROGRAMAS, "regioes": seats.REGIOES, "seats_ativo": bool(seats.API_KEY)}
+            "programas": seats.PROGRAMAS, "regioes": seats.REGIOES, "seats_ativo": seats.fonte_ativa() != "desligado"}
 
 
 @app.get("/seats/viagem/{availability_id}", dependencies=[Depends(autenticar)])
 def seats_viagem(availability_id: str):
     """Voos, taxas e links de emissão de uma oferta (1 chamada à Seats.aero)."""
-    if not seats.API_KEY:
-        raise HTTPException(409, "Seats.aero desligada: falta SEATS_AERO_API_KEY no .env do milhas-monitor")
-    if not availability_id.replace("-", "").replace("_", "").isalnum() or len(availability_id) > 64:
+    if seats.fonte_ativa() == "desligado":
+        raise HTTPException(409, "Seats.aero desligada: fonte 'api' sem SEATS_AERO_API_KEY no .env do milhas-monitor")
+    if not availability_id.replace("-", "").replace("_", "").replace(":", "").isalnum() or len(availability_id) > 80:
         raise HTTPException(400, "ID de oferta inválido")
     try:
         return seats.detalhes(availability_id)
@@ -394,7 +396,7 @@ def oportunidades(dias: int = 3):
             if r:
                 milhas.append({"trecho": t, **r})
     milhas.sort(key=lambda m: (not m["oportunidade"], m["total"]))
-    return {"voos": voos, "posts": posts, "milhas": milhas, "seats_ativo": bool(seats.API_KEY)}
+    return {"voos": voos, "posts": posts, "milhas": milhas, "seats_ativo": seats.fonte_ativa() != "desligado"}
 
 
 @app.get("/metricas", dependencies=[Depends(autenticar)])
