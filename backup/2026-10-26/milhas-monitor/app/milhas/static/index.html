@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Milhas Monitor</title>
+<script>
+  // Tema segue o sistema (Tabler usa data-bs-theme)
+  (function () {
+    const m = matchMedia("(prefers-color-scheme: dark)");
+    const aplicar = () => document.documentElement.setAttribute("data-bs-theme", m.matches ? "dark" : "light");
+    aplicar(); m.addEventListener("change", aplicar);
+  })();
+</script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/css/tabler.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700&family=Big+Shoulders+Display:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  /* Identidade correio aéreo sobre o Tabler */
+  :root, [data-bs-theme] {
+    --tblr-font-sans-serif: "Libre Franklin", system-ui, sans-serif;
+    --vermelho: #C8102E; --azul: #1D3F8F;
+    --display: "Big Shoulders Display", "Arial Narrow", sans-serif;
+  }
+  [data-bs-theme="light"] { --tblr-primary: #1D3F8F; --tblr-primary-rgb: 29, 63, 143; --tblr-body-bg: #E9EEF5; }
+  [data-bs-theme="dark"]  { --tblr-primary: #8DB0FF; --tblr-primary-rgb: 141, 176, 255; --tblr-body-bg: #0E1830;
+                            --tblr-bg-surface: #17244A; --tblr-border-color: #2C3B66; --vermelho: #FF6B7D; --azul: #8DB0FF; }
+  body { font-variant-numeric: tabular-nums; }
+  .display, .page-title, .card-title.display { font-family: var(--display); letter-spacing: .4px; }
+  .page-title { font-size: 2.1rem; font-weight: 800; }
+  .par-avion { height: 8px; background: repeating-linear-gradient(-45deg,
+    #C8102E 0 16px, transparent 16px 24px, #2F5BD3 24px 40px, transparent 40px 48px); }
+  .navbar-vertical { background: #14213D !important; }
+  .navbar-brand-texto { font: 800 1.6rem/1 var(--display); letter-spacing: .5px; color: #fff; }
+  .navbar-vertical .nav-link.active { background: rgba(255,255,255,.08); border-radius: 6px; }
+  .nav-subtitulo { color: rgba(255,255,255,.5); font-size: .8rem; padding: 1rem .75rem .25rem; }
+  .navbar.navbar-vertical .navbar-nav .nav-link .badge { position: static; margin-left: auto; transform: none; }
+
+  /* Buscador */
+  .iata-in { font: 800 1.6rem/1 var(--display) !important; text-transform: uppercase; letter-spacing: 1px; }
+  .cias .form-selectgroup-label { padding: .3rem .7rem; }
+  .logo-cia { width: 28px; height: 28px; object-fit: contain; }
+
+  /* Cartão de embarque */
+  .passes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 1rem; }
+  .pass { display: grid; grid-template-columns: 1fr 150px; background: var(--tblr-bg-surface);
+          border: 1px solid var(--tblr-border-color); border-radius: 12px; overflow: hidden; }
+  .pass-faixa { display: flex; justify-content: space-between; background: var(--tblr-primary); color: var(--tblr-bg-surface);
+                padding: .4rem 1rem; font-weight: 700; font-size: .85rem; }
+  .pausada .pass-faixa { background: var(--tblr-secondary); }
+  .pass-rota { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .75rem; padding: .9rem 1rem .2rem; }
+  .iata { font: 800 3.2rem/.85 var(--display); letter-spacing: 1px; }
+  .cidade { display: block; font: 400 .8rem/1.3 var(--tblr-font-sans-serif); color: var(--tblr-secondary); margin-top: .3rem; letter-spacing: 0; }
+  .destino { text-align: right; }
+  .mais-aeroportos { font: 700 1.1rem/1 var(--display); color: var(--tblr-secondary); margin-left: .2rem; vertical-align: top; }
+  .voo { position: relative; height: 20px; }
+  .voo::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed var(--tblr-border-color); }
+  .aviao { position: absolute; top: 50%; left: calc(100% - 20px); width: 20px; height: 20px; margin-top: -10px;
+           color: var(--vermelho); background: var(--tblr-bg-surface); animation: decolar 1.6s cubic-bezier(.45,0,.25,1) .2s both; }
+  @keyframes decolar { from { left: 0; } to { left: calc(100% - 20px); } }
+  .pass-dados { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: .4rem 1rem; padding: .7rem 1rem .9rem; margin: 0; }
+  .pass-dados dt { font-size: .75rem; color: var(--tblr-secondary); font-weight: 400; }
+  .pass-dados dd { margin: 0; font-weight: 700; font-size: .9rem; }
+  .pass-precos { margin: 0 1rem .9rem; font-size: .85rem; color: var(--tblr-secondary); }
+  .pass-precos:empty { display: none; }
+  .canhoto { position: relative; border-left: 2px dashed var(--tblr-border-color); padding: 2.4rem .9rem .9rem; display: flex; flex-direction: column; gap: .15rem; }
+  .canhoto::before, .canhoto::after { content: ""; position: absolute; left: -11px; width: 20px; height: 20px; border-radius: 50%;
+                                      background: var(--tblr-body-bg); border: 1px solid var(--tblr-border-color); }
+  .canhoto::before { top: -11px; } .canhoto::after { bottom: -11px; }
+  .teto { font: 800 1.9rem/1 var(--display); }
+  .canhoto .acoes { margin-top: auto; padding-top: .6rem; display: grid; gap: .1rem; }
+  .btn-link-sm { background: none; border: 0; padding: .15rem 0; color: var(--tblr-primary); font-weight: 700; font-size: .85rem; text-align: left; cursor: pointer; }
+  .btn-link-sm.perigo { color: var(--vermelho); }
+  .btn-link-sm:disabled { opacity: .5; }
+
+  /* Promoções */
+  .promo { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 1rem; }
+  .cifra { text-align: right; }
+  .cifra b { display: block; font: 800 2.2rem/.9 var(--display); }
+  .cifra small { color: var(--tblr-secondary); font-size: .75rem; }
+  .t-transferencia .cifra b { color: var(--vermelho); }
+  .t-compra .cifra b { color: var(--tblr-primary); }
+  .t-clube .cifra b, .t-cartao .cifra b, .cifra.neutra b { font-size: 1.4rem; padding-top: .4rem; }
+
+  .num-grande { font: 800 2.4rem/1 var(--display); }
+  .rota-iata { font: 800 1.6rem/1 var(--display); letter-spacing: .5px; white-space: nowrap; }
+
+  @media (max-width: 575px) {
+    .pass { grid-template-columns: 1fr; }
+    .canhoto { border-left: 0; border-top: 2px dashed var(--tblr-border-color); padding: .9rem 1rem; flex-flow: row wrap; align-items: baseline; gap: .2rem .8rem; }
+    .canhoto::before, .canhoto::after { top: -11px; bottom: auto; }
+    .canhoto::after { left: auto; right: -11px; }
+    .canhoto .acoes { width: 100%; display: flex; gap: 1rem; flex-wrap: wrap; margin: 0; }
+    .promo { grid-template-columns: 70px minmax(0, 1fr); }
+  }
+  @media (prefers-reduced-motion: reduce) { .aviao { animation: none; } }
+  #msg { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 2000; display: none; max-width: calc(100% - 32px); }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="page page-center d-none" id="login">
+  <div class="container container-tight py-4">
+    <div class="card card-md">
+      <div class="par-avion"></div>
+      <div class="card-body">
+        <h2 class="display text-center mb-4" style="font-size:2.2rem">Milhas Monitor</h2>
+        <form id="form-login" autocomplete="off">
+          <label class="form-label" for="token">Token de acesso</label>
+          <input class="form-control" id="token" type="password" autocomplete="current-password" required>
+          <div class="form-hint mt-2">É o MILHAS_API_TOKEN do .env do milhas-monitor. Fica salvo só neste navegador.</div>
+          <button class="btn btn-primary w-100 mt-4">Entrar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- App -->
+<div class="page d-none" id="app">
+  <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+    <div class="container-fluid p-0">
+      <div class="par-avion w-100"></div>
+      <div class="container-fluid">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu" aria-controls="menu" aria-expanded="false" aria-label="Abrir menu">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <a href="#/" class="navbar-brand navbar-brand-autodark py-3"><span class="navbar-brand-texto">Milhas Monitor</span></a>
+        <div class="collapse navbar-collapse" id="menu">
+          <ul class="navbar-nav pt-lg-2">
+            <li class="nav-item"><a class="nav-link" href="#/"><span class="nav-link-icon"><i class="ti ti-layout-dashboard"></i></span><span class="nav-link-title">Início</span></a></li>
+            <li class="nav-item"><a class="nav-link" href="#/emissoes"><span class="nav-link-icon"><i class="ti ti-ticket"></i></span><span class="nav-link-title">Emissões</span><span class="badge bg-red text-red-fg ms-auto d-none" data-cont="oportunidades"></span></a></li>
+            <li class="nav-item"><a class="nav-link" href="#/rotas"><span class="nav-link-icon"><i class="ti ti-route"></i></span><span class="nav-link-title">Rotas</span><span class="badge ms-auto d-none" data-cont="rotas"></span></a></li>
+            <li class="nav-subtitulo">Promoções</li>
+            <li class="nav-item"><a class="nav-link" href="#/promocoes/transferencia"><span class="nav-link-icon"><i class="ti ti-arrows-exchange"></i></span><span class="nav-link-title">Transferências</span><span class="badge ms-auto d-none" data-cont="transferencia"></span></a></li>
+            <li class="nav-item"><a class="nav-link" href="#/promocoes/compra"><span class="nav-link-icon"><i class="ti ti-shopping-cart"></i></span><span class="nav-link-title">Compra de pontos</span><span class="badge ms-auto d-none" data-cont="compra"></span></a></li>
+            <li class="nav-item"><a class="nav-link" href="#/promocoes/clube"><span class="nav-link-icon"><i class="ti ti-crown"></i></span><span class="nav-link-title">Clubes de milhas</span><span class="badge ms-auto d-none" data-cont="clube"></span></a></li>
+            <li class="nav-item"><a class="nav-link" href="#/promocoes/cartao"><span class="nav-link-icon"><i class="ti ti-credit-card"></i></span><span class="nav-link-title">Cartões</span><span class="badge ms-auto d-none" data-cont="cartao"></span></a></li>
+            <li class="nav-subtitulo">Sistema</li>
+            <li class="nav-item"><a class="nav-link" href="#/radar"><span class="nav-link-icon"><i class="ti ti-radar"></i></span><span class="nav-link-title">Radar</span></a></li>
+            <li class="nav-item"><a class="nav-link" href="#" id="btn-sair"><span class="nav-link-icon"><i class="ti ti-logout"></i></span><span class="nav-link-title">Sair</span></a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="page-wrapper">
+    <div class="page-header d-print-none">
+      <div class="container-xl">
+        <div class="row g-2 align-items-center">
+          <div class="col"><h1 class="page-title" id="titulo">Início</h1><div class="text-secondary mt-1" id="subtitulo"></div></div>
+          <div class="col-auto"><button class="btn" data-exec="rss"><i class="ti ti-refresh me-1"></i>Coletar<span class="d-none d-md-inline">&nbsp;promoções agora</span></button></div>
+        </div>
+      </div>
+    </div>
+    <div class="page-body"><div class="container-xl" id="view"></div></div>
+  </div>
+</div>
+
+<datalist id="aeroportos"></datalist>
+<div id="msg" class="alert alert-dark mb-0" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler.min.js"></script>
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+const CIDADES = {
+  SAO: "São Paulo, todos", RIO: "Rio, todos", BHZ: "Belo Horizonte, todos", NYC: "Nova York, todos",
+  LON: "Londres, todos", PAR: "Paris, todos", BUE: "Buenos Aires, todos", TYO: "Tóquio, todos",
+  BSB: "Brasília", GRU: "São Paulo", CGH: "São Paulo", VCP: "Campinas", GIG: "Rio de Janeiro", SDU: "Rio de Janeiro",
+  CNF: "Belo Horizonte", SSA: "Salvador", REC: "Recife", FOR: "Fortaleza", NAT: "Natal", MCZ: "Maceió", JPA: "João Pessoa",
+  POA: "Porto Alegre", CWB: "Curitiba", FLN: "Florianópolis", BEL: "Belém", MAO: "Manaus", GYN: "Goiânia", CGB: "Cuiabá",
+  VIX: "Vitória", IGU: "Foz do Iguaçu", FEN: "Noronha", LIS: "Lisboa", OPO: "Porto", MAD: "Madri", BCN: "Barcelona",
+  CDG: "Paris", ORY: "Paris", FCO: "Roma", MXP: "Milão", LHR: "Londres", AMS: "Amsterdã", FRA: "Frankfurt", ZRH: "Zurique",
+  IST: "Istambul", DXB: "Dubai", DOH: "Doha", MIA: "Miami", MCO: "Orlando", JFK: "Nova York", EWR: "Nova York",
+  LAX: "Los Angeles", LAS: "Las Vegas", YYZ: "Toronto", MEX: "Cidade do México", CUN: "Cancún", PUJ: "Punta Cana",
+  EZE: "Buenos Aires", AEP: "Buenos Aires", SCL: "Santiago", MVD: "Montevidéu", LIM: "Lima", BOG: "Bogotá", PTY: "Panamá",
+  NRT: "Tóquio", HND: "Tóquio", JNB: "Joanesburgo", CPT: "Cidade do Cabo",
+};
+const CIAS = [["LA", "LATAM"], ["G3", "Gol"], ["AD", "Azul"], ["TP", "TAP"], ["CM", "Copa"], ["AV", "Avianca"],
+  ["AR", "Aerolíneas"], ["DM", "Arajet"], ["AA", "American"], ["UA", "United"], ["DL", "Delta"], ["AF", "Air France"],
+  ["KL", "KLM"], ["IB", "Iberia"], ["LH", "Lufthansa"], ["EK", "Emirates"], ["QR", "Qatar"], ["TK", "Turkish"]];
+const NOME_CIA = Object.fromEntries(CIAS);
+const CABINE = { economica: "Econômica", premium: "Premium economy", executiva: "Executiva", primeira: "Primeira classe" };
+const TIPOS = {
+  transferencia: { nome: "Transferências", sub: "Bônus para transferir pontos de bancos e cartões para programas aéreos" },
+  compra: { nome: "Compra de pontos", sub: "Pontos e milhas vendidos com desconto ou milheiro baixo" },
+  clube: { nome: "Clubes de milhas", sub: "Assinaturas com bônus de entrada e acúmulo mensal" },
+  cartao: { nome: "Cartões", sub: "Cartões com pontuação, bônus de boas-vindas ou anuidade grátis" },
+};
+const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const AVIAO = `<svg class="aviao" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" transform="rotate(90 12 12)"/></svg>`;
+
+/* ---------- utilidades ---------- */
+const store = {
+  get() { try { return localStorage.getItem("milhas_token") || ""; } catch { return ""; } },
+  set(v) { try { v ? localStorage.setItem("milhas_token", v) : localStorage.removeItem("milhas_token"); } catch {} },
+};
+let TOKEN = store.get();
+let STATUS = null;
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const brl = (v, casas = 0) => v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: casas, maximumFractionDigits: casas });
+const dia = (iso) => { if (!iso) return ""; const [a, m, d] = iso.slice(0, 10).split("-"); return `${+d} ${MESES[m - 1]} ${a}`; };
+const instante = (iso) => iso ? new Date(/[zZ]|[+-]\d\d:\d\d$/.test(iso) ? iso : iso.replace(" ", "T") + "Z") : null;
+const hora = (iso) => {
+  const d = instante(iso); if (!d) return "ainda não rodou";
+  const hoje = new Date().toDateString() === d.toDateString();
+  return (hoje ? "hoje, " : `${d.getDate()} ${MESES[d.getMonth()]}, `) + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+};
+const duracao = (min) => min ? `${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}` : "—";
+const linkSeguro = (u) => /^https?:\/\//i.test(u || "") ? u : "#";
+const hojeISO = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
+function aviso(texto) {
+  const m = $("#msg"); m.textContent = texto; m.style.display = "block";
+  clearTimeout(aviso.t); aviso.t = setTimeout(() => (m.style.display = "none"), 4500);
+}
+
+async function api(metodo, caminho, corpo) {
+  const r = await fetch(caminho, {
+    method: metodo,
+    headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
+    body: corpo ? JSON.stringify(corpo) : undefined,
+  });
+  if (r.status === 401) { sair(); throw new Error("Token recusado. Confira o MILHAS_API_TOKEN e entre de novo."); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const d = j.detail;
+    throw new Error(Array.isArray(d) ? d.map((x) => `${x.loc?.at(-1) ?? ""}: ${x.msg.replace("Value error, ", "")}`).join("; ") : d || `Erro ${r.status}`);
+  }
+  return j;
+}
+
+/* ---------- componentes ---------- */
+function buscador({ titulo = "Buscar passagens" } = {}) {
+  const chips = CIAS.map(([c, n]) => `
+    <label class="form-selectgroup-item"><input type="checkbox" name="cias" value="${c}" class="form-selectgroup-input">
+      <span class="form-selectgroup-label">${esc(n)}</span></label>`).join("");
+  return `
+  <div class="card mb-4" id="card-busca">
+    <div class="par-avion"></div>
+    <div class="card-header"><h3 class="card-title">${titulo}</h3>
+      <div class="card-actions text-secondary small">Pesquisar agora usa 1 busca da SerpAPI</div></div>
+    <form class="card-body" id="form-busca" autocomplete="off">
+      <div class="row g-3">
+        <div class="col-6 col-md-2"><label class="form-label">Origem</label>
+          <input class="form-control iata-in" name="origem" list="aeroportos" maxlength="23" placeholder="BSB" title="Um ou mais códigos separados por vírgula, ex.: BSB,GYN" required></div>
+        <div class="col-6 col-md-2"><label class="form-label">Destino</label>
+          <input class="form-control iata-in" name="destino" list="aeroportos" maxlength="23" placeholder="BUE" title="Um ou mais códigos separados por vírgula, ex.: EZE,AEP" required></div>
+        <div class="col-6 col-md-2"><label class="form-label">Ida</label><input class="form-control" type="date" name="data_ida" min="${hojeISO()}" required></div>
+        <div class="col-6 col-md-2"><label class="form-label">Volta</label><input class="form-control" type="date" name="data_volta" min="${hojeISO()}"></div>
+        <div class="col-6 col-md-2"><label class="form-label">Passageiros</label>
+          <select class="form-select" name="adultos">${[1,2,3,4,5,6,7,8,9].map((n) => `<option value="${n}">${n} ${n > 1 ? "adultos" : "adulto"}</option>`).join("")}</select></div>
+        <div class="col-6 col-md-2"><label class="form-label">Cabine</label>
+          <select class="form-select" name="cabine">${Object.entries(CABINE).map(([v, n]) => `<option value="${v}">${n}</option>`).join("")}</select></div>
+        <div class="col-12"><label class="form-label">Companhias aéreas <span class="text-secondary fw-normal">(nenhuma marcada = todas)</span></label>
+          <div class="form-selectgroup form-selectgroup-pills cias">${chips}</div></div>
+        <div class="col-12">
+          <a class="small" data-bs-toggle="collapse" href="#mais-opcoes" role="button" aria-expanded="false">Opções de monitoramento</a>
+          <div class="collapse" id="mais-opcoes"><div class="row g-3 mt-0">
+            <div class="col-6 col-md-3"><label class="form-label">Avisar até (R$)</label><input class="form-control" type="number" name="max_reais" min="1" inputmode="numeric"></div>
+            <div class="col-6 col-md-3"><label class="form-label">Ou até (milhas)</label><input class="form-control" type="number" name="max_milhas" min="1" step="1000" inputmode="numeric"></div>
+            <div class="col-6 col-md-3"><label class="form-label">Flexibilidade (± dias)</label><input class="form-control" type="number" name="flex_dias" min="0" max="15" value="0"></div>
+            <div class="col-6 col-md-3"><label class="form-label">Outros nomes do destino</label><input class="form-control" name="palavras" placeholder="lisboa, portugal"></div>
+          </div></div>
+        </div>
+        <div class="col-12 d-flex gap-2 flex-wrap">
+          <button class="btn btn-primary" name="acao" value="pesquisar"><i class="ti ti-search me-1"></i>Pesquisar agora</button>
+          <button class="btn btn-outline-primary" name="acao" value="monitorar"><i class="ti ti-bell-plus me-1"></i>Monitorar rota</button>
+        </div>
+      </div>
+    </form>
+    <div id="resultado"></div>
+  </div>`;
+}
+
+function lerBusca(form) {
+  const f = new FormData(form);
+  const corpo = { origem: f.get("origem"), destino: f.get("destino"), data_ida: f.get("data_ida"), cabine: f.get("cabine"),
+                  adultos: Number(f.get("adultos")), flex_dias: Number(f.get("flex_dias") || 0) };
+  if (f.get("data_volta")) corpo.data_volta = f.get("data_volta");
+  if (f.get("max_reais")) corpo.max_reais = Number(f.get("max_reais"));
+  if (f.get("max_milhas")) corpo.max_milhas = Number(f.get("max_milhas"));
+  if (f.get("palavras")) corpo.palavras = f.get("palavras");
+  const cias = f.getAll("cias"); if (cias.length) corpo.cias = cias.join(",");
+  return corpo;
+}
+
+function resultadoBusca(r, corpo) {
+  if (!r.opcoes.length) {
+    return `<div class="card-body border-top"><div class="empty py-3"><p class="empty-title">Nenhum voo encontrado</p>
+      <p class="empty-subtitle text-secondary">${esc(r.erro || "Tente outras datas, outra cabine ou menos filtros de companhia.")}</p></div></div>`;
+  }
+  const nivel = { low: ["Preço baixo", "bg-green-lt"], typical: ["Preço típico", "bg-azure-lt"], high: ["Preço alto", "bg-red-lt"] }[r.nivel_preco];
+  const faixa = r.faixa_tipica ? `Faixa típica: ${brl(r.faixa_tipica[0])} a ${brl(r.faixa_tipica[1])}` : "";
+  return `
+  <div class="card-body border-top">
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+      <span class="rota-iata">${esc(corpo.origem.toUpperCase())} → ${esc(corpo.destino.toUpperCase())}</span>
+      <span class="text-secondary">${dia(corpo.data_ida)}${corpo.data_volta ? " a " + dia(corpo.data_volta) : ", só ida"}</span>
+      ${nivel ? `<span class="badge ${nivel[1]}">${nivel[0]}</span>` : ""}
+      <span class="text-secondary small">${faixa}</span>
+      <span class="ms-auto d-flex gap-2">
+        ${r.link ? `<a class="btn btn-sm" href="${esc(linkSeguro(r.link))}" target="_blank" rel="noopener noreferrer"><i class="ti ti-external-link me-1"></i>Google Flights</a>` : ""}
+        <button class="btn btn-sm btn-primary" data-monitorar-busca><i class="ti ti-bell-plus me-1"></i>Monitorar esta rota</button>
+      </span>
+    </div>
+    <div class="table-responsive"><table class="table table-vcenter card-table">
+      <thead><tr><th>Companhia</th><th>Horário</th><th>Duração</th><th>Paradas</th><th class="text-end">Preço total</th></tr></thead>
+      <tbody>${r.opcoes.map((o, i) => `<tr>
+        <td><div class="d-flex align-items-center gap-2">${o.logo ? `<img class="logo-cia" src="${esc(linkSeguro(o.logo))}" alt="">` : ""}<span>${esc(o.cias)}</span></div></td>
+        <td>${esc((o.partida || "").slice(11))} → ${esc((o.chegada || "").slice(11))}<div class="small text-secondary">${esc(o.de || "")} → ${esc(o.para || "")}</div></td>
+        <td>${duracao(o.duracao_min)}</td>
+        <td>${o.paradas ? `${o.paradas} ${o.paradas > 1 ? "paradas" : "parada"}<div class="small text-secondary">em ${esc((o.escalas || []).join(", "))}</div>` : `<span class="text-green">Direto</span>`}</td>
+        <td class="text-end"><b class="${i === 0 ? "text-green" : ""}">${brl(o.preco)}</b></td></tr>`).join("")}</tbody>
+    </table></div>
+  </div>`;
+}
+
+// "GRU,CGH,VCP" → GRU em destaque, "+2" e a lista completa no lugar do nome da cidade
+function iataHtml(codigos) {
+  const lista = codigos.split(",");
+  const extra = lista.length > 1 ? `<small class="mais-aeroportos">+${lista.length - 1}</small>` : "";
+  const legenda = lista.length > 1 ? `${CIDADES[lista[0]] || ""} ${lista.join(", ")}`.trim() : CIDADES[lista[0]] || "";
+  return `${esc(lista[0])}${extra}<span class="cidade">${esc(legenda)}</span>`;
+}
+
+function cartao(t) {
+  const ativa = !!t.ativo;
+  const cias = t.cias ? t.cias.split(",").map((c) => NOME_CIA[c] || c).join(", ") : "Todas";
+  return `
+  <article class="pass ${ativa ? "" : "pausada"}" aria-label="Rota ${esc(t.origem)} para ${esc(t.destino)}">
+    <div>
+      <div class="pass-faixa"><span>Rota #${t.id}</span><span>${ativa ? "Monitorando" : "Pausada"}</span></div>
+      <div class="pass-rota">
+        <div class="iata">${iataHtml(t.origem)}</div>
+        <div class="voo">${AVIAO}</div>
+        <div class="iata destino">${iataHtml(t.destino)}</div>
+      </div>
+      <dl class="pass-dados">
+        <div><dt>Ida</dt><dd>${dia(t.data_ida)}</dd></div>
+        <div><dt>Volta</dt><dd>${t.data_volta ? dia(t.data_volta) : "Só ida"}</dd></div>
+        <div><dt>Flexível</dt><dd>${t.flex_dias ? `± ${t.flex_dias} ${t.flex_dias > 1 ? "dias" : "dia"}` : "Data exata"}</dd></div>
+        <div><dt>Cabine</dt><dd>${esc(CABINE[t.cabine] || t.cabine)}</dd></div>
+        <div><dt>Passageiros</dt><dd>${t.adultos}</dd></div>
+        <div><dt>Companhias</dt><dd>${esc(cias)}</dd></div>
+      </dl>
+      <p class="pass-precos" id="precos-${t.id}"></p>
+    </div>
+    <div class="canhoto">
+      <span class="small text-secondary">Avise até</span>
+      ${t.max_reais ? `<span class="teto">${brl(t.max_reais)}</span>` : `<span class="small">Sem teto: aviso no menor preço já visto</span>`}
+      ${t.max_milhas ? `<span class="small text-secondary">ou ${Number(t.max_milhas).toLocaleString("pt-BR")} milhas</span>` : ""}
+      <div class="acoes">
+        <button class="btn-link-sm" data-precos="${t.id}">Ver preços</button>
+        ${ativa ? `<button class="btn-link-sm" data-buscar="${t.id}">Buscar agora</button>` : ""}
+        <button class="btn-link-sm" data-toggle="${t.id}" data-ativo="${ativa ? 1 : 0}">${ativa ? "Pausar" : "Retomar"}</button>
+        <button class="btn-link-sm perigo" data-remover="${t.id}">Remover</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+function cifra(p) {
+  if (p.tipo === "transferencia") return p.bonus_pct ? [`${p.bonus_pct}%`, "de bônus"] : ["Vários", "programas"];
+  if (p.tipo === "compra") {
+    if (p.milheiro) return [brl(p.milheiro), "o milheiro"];
+    if (p.desconto_pct) return [`${p.desconto_pct}%`, "de desconto"];
+    return ["Compra", "ver preço"];
+  }
+  return [p.tipo === "clube" ? "Clube" : "Cartão", p.bonus_pct ? `${p.bonus_pct}% de bônus` : ""];
+}
+
+function listaPromos(lista, vazio) {
+  if (!lista.length) return `<div class="card-body"><div class="empty py-3"><p class="empty-title">Nada por aqui</p><p class="empty-subtitle text-secondary">${vazio}</p></div></div>`;
+  return `<div class="list-group list-group-flush">${lista.map((p) => {
+    const [num, leg] = cifra(p);
+    let rota = p.destino || p.programas || "";
+    if (p.tipo === "transferencia" && p.destino) rota = p.origem ? `${p.origem} para ${p.destino}` : `Para ${p.destino}`;
+    return `<div class="list-group-item promo t-${esc(p.tipo)}">
+      <div class="cifra ${/\d/.test(num) ? "" : "neutra"}"><b>${esc(num)}</b><small>${esc(leg)}</small></div>
+      <div>
+        ${rota ? `<div class="fw-bold">${esc(rota)}</div>` : ""}
+        <a href="${esc(linkSeguro(p.url))}" target="_blank" rel="noopener noreferrer">${esc(p.titulo)}</a>
+        <div class="d-flex flex-wrap gap-3 small text-secondary mt-1">
+          ${p.validade ? `<span class="text-orange fw-bold">Vale até ${esc(p.validade)}</span>` : ""}
+          <span>${esc(p.fonte)}</span><span>${esc(hora(p.criado_em))}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+function tabelaMilheiro(m) {
+  const programas = [...new Set([...Object.keys(m.milheiro_alvo || {}), ...m.milheiro_observado.map((x) => x.programa)])];
+  if (!programas.length) return `<div class="card-body text-secondary">Defina o milheiro_alvo no config.yaml.</div>`;
+  const obs = Object.fromEntries(m.milheiro_observado.map((x) => [x.programa, x]));
+  return `<div class="table-responsive"><table class="table table-vcenter card-table">
+    <thead><tr><th>Programa</th><th class="text-end">Vale a pena até</th><th class="text-end">Média nas promoções</th></tr></thead>
+    <tbody>${programas.map((p) => {
+      const alvo = m.milheiro_alvo?.[p]; const o = obs[p];
+      const bom = alvo && o && o.media <= alvo;
+      return `<tr><td>${esc(p)}</td><td class="text-end fw-bold">${alvo ? brl(alvo, 2) : "—"}</td>
+        <td class="text-end">${o ? `<span class="${bom ? "text-green fw-bold" : ""}">${brl(o.media, 2)}</span><div class="small text-secondary">${o.promocoes} promo${o.promocoes > 1 ? "s" : ""}, menor ${brl(o.menor, 2)}</div>` : `<span class="text-secondary">sem dados</span>`}</td></tr>`;
+    }).join("")}</tbody></table></div>
+    <div class="card-footer small text-secondary">Referência ajustável em milheiro_alvo no config.yaml. Média dos últimos ${m.dias} dias.</div>`;
+}
+
+/* ---------- telas ---------- */
+async function telaInicio() {
+  const [rotas, promos, opp, met] = await Promise.all([
+    api("GET", "/trechos"), api("GET", "/promocoes?dias=7"), api("GET", "/oportunidades"), api("GET", "/metricas"),
+  ]);
+  const nOpp = opp.voos.filter((v) => v.oportunidade).length;
+  const melhorBonus = Math.max(0, ...promos.filter((p) => p.tipo === "transferencia").map((p) => p.bonus_pct || 0));
+  const kpi = (icone, valor, rotulo, href) => `
+    <div class="col-6 col-lg-3"><a class="card card-sm card-link" href="${href}"><div class="card-body d-flex align-items-center gap-3">
+      <span class="avatar bg-primary-lt"><i class="ti ${icone}"></i></span>
+      <div><div class="num-grande">${valor}</div><div class="text-secondary">${rotulo}</div></div></div></a></div>`;
+  return buscador() + `
+  <div class="row row-cards mb-4">
+    ${kpi("ti-route", rotas.length, "rotas monitoradas", "#/rotas")}
+    ${kpi("ti-ticket", nOpp, nOpp === 1 ? "oportunidade de emissão" : "oportunidades de emissão", "#/emissoes")}
+    ${kpi("ti-speakerphone", promos.length, "promoções em 7 dias", "#/promocoes/transferencia")}
+    ${kpi("ti-arrows-exchange", melhorBonus ? melhorBonus + "%" : "—", "maior bônus de transferência", "#/promocoes/transferencia")}
+  </div>
+  <div class="row row-cards">
+    <div class="col-lg-7">
+      <div class="d-flex align-items-center mb-2"><h2 class="display mb-0" style="font-size:1.8rem">Suas rotas</h2>
+        <a class="ms-auto" href="#/rotas">Ver todas</a></div>
+      ${rotas.length ? `<div class="passes">${rotas.slice(0, 4).map(cartao).join("")}</div>`
+        : `<div class="card"><div class="card-body text-secondary">Nenhuma rota ainda. Use o buscador acima e toque em “Monitorar rota”.</div></div>`}
+    </div>
+    <div class="col-lg-5">
+      <div class="card mb-3"><div class="card-header"><h3 class="card-title">Milheiro que vale a pena</h3></div>${tabelaMilheiro(met)}</div>
+    </div>
+    <div class="col-12">
+      <div class="card"><div class="card-header"><h3 class="card-title">Promoções dos últimos 7 dias</h3>
+        <div class="card-actions"><a href="#/promocoes/transferencia">Ver por tipo</a></div></div>
+        ${listaPromos(promos.slice(0, 12), "Nenhuma promoção coletada nos últimos 7 dias.")}</div>
+    </div>
+  </div>`;
+}
+
+async function telaRotas() {
+  const todos = sessionStorage.getItem("todos") === "1";
+  const rotas = await api("GET", `/trechos${todos ? "?todos=true" : ""}`);
+  return buscador({ titulo: "Nova rota" }) + `
+  <div class="d-flex align-items-center mb-3">
+    <label class="form-check form-switch mb-0 ms-auto"><input class="form-check-input" type="checkbox" id="todos" ${todos ? "checked" : ""}>
+      <span class="form-check-label">Mostrar pausadas e vencidas</span></label>
+  </div>
+  ${rotas.length ? `<div class="passes">${rotas.map(cartao).join("")}</div>`
+    : `<div class="card"><div class="card-body text-secondary">Nenhuma rota. Preencha o buscador acima e toque em “Monitorar rota”.</div></div>`}`;
+}
+
+async function telaEmissoes() {
+  const r = await api("GET", "/oportunidades");
+  const linha = (v) => `<tr>
+    <td><span class="rota-iata">${esc(v.origem)} → ${esc(v.destino)}</span><div class="small text-secondary">Rota #${v.id}, ${esc(CABINE[v.cabine] || v.cabine)}, ${v.adultos} pax</div></td>
+    <td>${dia(v.cot_ida)}${v.cot_volta ? `<div class="small text-secondary">volta ${dia(v.cot_volta)}</div>` : ""}</td>
+    <td class="text-end"><span class="num-grande" style="font-size:1.7rem">${brl(v.valor)}</span>
+      <div class="small text-secondary">${esc(v.cia || "")}</div></td>
+    <td class="text-end">${v.amostras > 1 ? `${brl(v.media)}<div class="small ${v.pct_abaixo_media > 0 ? "text-green" : "text-secondary"}">${v.pct_abaixo_media > 0 ? Math.round(v.pct_abaixo_media) + "% abaixo" : "acima da média"}</div>` : `<span class="text-secondary">1ª cotação</span>`}</td>
+    <td>${v.motivos.map((m) => `<span class="badge bg-green-lt me-1">${esc(m)}</span>`).join("") || `<span class="text-secondary small">sem sinal ainda</span>`}</td>
+    <td class="text-end text-nowrap">${v.link ? `<a class="btn btn-sm btn-primary" href="${esc(linkSeguro(v.link))}" target="_blank" rel="noopener noreferrer">Ver voos</a>` : ""}
+      <button class="btn btn-sm" data-buscar="${v.id}">Atualizar</button></td></tr>`;
+  const opp = r.voos.filter((v) => v.oportunidade), demais = r.voos.filter((v) => !v.oportunidade);
+  const tabela = (lista) => `<div class="table-responsive"><table class="table table-vcenter card-table">
+    <thead><tr><th>Rota</th><th>Data</th><th class="text-end">Melhor preço</th><th class="text-end">Média da rota</th><th>Por quê</th><th></th></tr></thead>
+    <tbody>${lista.map(linha).join("")}</tbody></table></div>`;
+  const semBusca = STATUS && !STATUS.busca_voos_ativa;
+  return `
+  ${semBusca ? `<div class="alert alert-warning">A busca de preços está desligada: falta a SERPAPI_KEY no .env do milhas-monitor.</div>` : ""}
+  <div class="card mb-4"><div class="card-header"><h3 class="card-title">Oportunidades de emissão</h3>
+    <div class="card-actions text-secondary small">Preço abaixo do seu teto, menor já visto ou 10% abaixo da média</div></div>
+    ${opp.length ? tabela(opp) : `<div class="card-body text-secondary">Nenhuma oportunidade nas cotações dos últimos 3 dias. Defina um teto nas rotas para ser avisado assim que o preço chegar lá.</div>`}
+  </div>
+  ${demais.length ? `<div class="card mb-4"><div class="card-header"><h3 class="card-title">Demais rotas</h3></div>${tabela(demais)}</div>` : ""}
+  <div class="card"><div class="card-header"><h3 class="card-title">Posts que citam suas rotas</h3><div class="card-actions text-secondary small">Últimos 30 dias</div></div>
+    ${r.posts.length ? `<div class="list-group list-group-flush">${r.posts.map((p) => `<div class="list-group-item">
+      <span class="badge bg-primary-lt me-2">${esc(p.rota)}</span><a href="${esc(linkSeguro(p.url))}" target="_blank" rel="noopener noreferrer">${esc(p.titulo)}</a>
+      <div class="small text-secondary mt-1">${esc(p.fonte)}, ${esc(hora(p.em))}</div></div>`).join("")}</div>`
+      : `<div class="card-body text-secondary">Nenhum post de blog citou o destino das suas rotas nos últimos 30 dias.</div>`}
+  </div>`;
+}
+
+async function telaPromos(tipo) {
+  const dias = sessionStorage.getItem("dias") || "30";
+  const programa = sessionStorage.getItem("programa") || "";
+  const q = new URLSearchParams({ dias, tipo }); if (programa) q.set("programa", programa);
+  const [lista, met] = await Promise.all([api("GET", `/promocoes?${q}`), api("GET", "/metricas")]);
+  const lateral = tipo === "transferencia" ? `
+    <div class="card"><div class="card-header"><h3 class="card-title">Bônus médio por programa</h3></div>
+      ${met.bonus_transferencia.length ? `<div class="table-responsive"><table class="table table-vcenter card-table">
+        <thead><tr><th>Programa</th><th class="text-end">Média</th><th class="text-end">Maior</th></tr></thead>
+        <tbody>${met.bonus_transferencia.map((b) => `<tr><td>${esc(b.programa)}<div class="small text-secondary">${b.promocoes} promo${b.promocoes > 1 ? "s" : ""}</div></td>
+          <td class="text-end">${b.media}%</td><td class="text-end fw-bold text-red">${b.maior}%</td></tr>`).join("")}</tbody></table></div>
+        <div class="card-footer small text-secondary">Últimos ${met.dias} dias. Bônus acima da média costuma valer a pena.</div>`
+      : `<div class="card-body text-secondary">Ainda sem histórico suficiente.</div>`}</div>`
+    : tipo === "compra" ? `<div class="card"><div class="card-header"><h3 class="card-title">Milheiro que vale a pena</h3></div>${tabelaMilheiro(met)}</div>` : "";
+  return `
+  <div class="row row-cards">
+    <div class="${lateral ? "col-lg-8" : "col-12"}">
+      <div class="card">
+        <div class="card-header gap-2 flex-wrap">
+          <h3 class="card-title">${lista.length} ${lista.length === 1 ? "promoção" : "promoções"}</h3>
+          <div class="card-actions d-flex gap-2">
+            <input class="form-control form-control-sm" style="width:12rem" id="f-programa" placeholder="Filtrar programa" value="${esc(programa)}">
+            <select class="form-select form-select-sm" style="width:auto" id="f-dias">
+              ${[["7", "7 dias"], ["30", "30 dias"], ["90", "90 dias"], ["365", "1 ano"]].map(([v, n]) => `<option value="${v}" ${v === dias ? "selected" : ""}>${n}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        ${listaPromos(lista, "Nenhuma promoção desse tipo no período. Amplie o período ou limpe o filtro.")}
+      </div>
+    </div>
+    ${lateral ? `<div class="col-lg-4">${lateral}</div>` : ""}
+  </div>`;
+}
+
+async function telaRadar() {
+  const s = STATUS = await api("GET", "/status");
+  const feeds = Object.entries(s.feeds || {});
+  const tarefas = { rss: "Coleta de promoções", voos: "Busca de preços", resumo: "Resumo diário", limpeza: "Limpeza" };
+  return `
+  <div class="row row-cards">
+    <div class="col-lg-6"><div class="card"><div class="card-header"><h3 class="card-title">Integrações</h3></div>
+      <div class="list-group list-group-flush">
+        <div class="list-group-item d-flex justify-content-between"><span>Alertas no Telegram</span>
+          <span class="badge ${s.telegram_configurado ? "bg-green-lt" : "bg-red-lt"}">${s.telegram_configurado ? "Ligados" : "Faltam token e chat_id"}</span></div>
+        <div class="list-group-item d-flex justify-content-between"><span>Preços das rotas (SerpAPI)</span>
+          <span class="badge ${s.busca_voos_ativa ? "bg-green-lt" : "bg-yellow-lt"}">${s.busca_voos_ativa ? "A cada " + s.agenda.voos_horas + "h" : "Desligado"}</span></div>
+        <div class="list-group-item d-flex justify-content-between"><span>Última cotação</span><span>${esc(hora(s.ultima_cotacao))}</span></div>
+        <div class="list-group-item d-flex justify-content-between"><span>Posts lidos</span><span>${s.posts}</span></div>
+      </div>
+      <div class="card-footer d-flex gap-2 flex-wrap">
+        <button class="btn btn-primary" data-exec="rss">Coletar promoções agora</button>
+        <button class="btn" data-exec="voos">Buscar preços de todas as rotas</button>
+        <button class="btn" data-exec="teste">Enviar teste ao Telegram</button>
+      </div></div></div>
+    <div class="col-lg-6"><div class="card"><div class="card-header"><h3 class="card-title">Blogs monitorados</h3></div>
+      <div class="list-group list-group-flush">${feeds.map(([n, f]) => `<div class="list-group-item d-flex justify-content-between gap-2">
+        <span><span class="status-dot ${f.ok ? "status-green" : "status-red"} me-2"></span>${esc(n)}</span>
+        <span class="small text-secondary">${f.ok ? `${f.posts_novos} novos` : esc(f.erro)}</span></div>`).join("") || `<div class="list-group-item text-secondary">Aguardando a primeira coleta</div>`}</div></div>
+      <div class="card mt-3"><div class="card-header"><h3 class="card-title">Tarefas</h3></div>
+      <div class="list-group list-group-flush">${Object.entries(tarefas).map(([k, n]) => {
+        const t = s.tarefas?.[k];
+        return `<div class="list-group-item d-flex justify-content-between"><span>${n}</span>
+          <span class="small ${t?.erro ? "text-red" : "text-secondary"}">${t ? (t.erro ? "erro: " + esc(t.erro) : esc(hora(t.fim))) : "ainda não rodou"}</span></div>`;
+      }).join("")}</div></div>
+    </div>
+  </div>`;
+}
+
+/* ---------- roteador ---------- */
+const TELAS = {
+  "/": { titulo: "Início", sub: "Rotas, oportunidades e promoções num só lugar", fn: telaInicio },
+  "/rotas": { titulo: "Rotas", sub: "Viagens monitoradas: o alerta chega no Telegram quando o preço cair", fn: telaRotas },
+  "/emissoes": { titulo: "Emissões", sub: "Voos das suas rotas com preço bom para emitir agora", fn: telaEmissoes },
+  "/radar": { titulo: "Radar", sub: "Saúde do monitor, integrações e execução manual", fn: telaRadar },
+};
+for (const [tipo, t] of Object.entries(TIPOS)) TELAS[`/promocoes/${tipo}`] = { titulo: t.nome, sub: t.sub, fn: () => telaPromos(tipo) };
+
+async function navegar() {
+  const caminho = location.hash.slice(1) || "/";
+  const tela = TELAS[caminho] || TELAS["/"];
+  $("#titulo").textContent = tela.titulo; $("#subtitulo").textContent = tela.sub;
+  document.title = `${tela.titulo} | Milhas Monitor`;
+  $$(".navbar-vertical .nav-link").forEach((a) => a.classList.toggle("active", a.getAttribute("href") === "#" + caminho));
+  // tabler.min.js expõe os componentes do Bootstrap em window.tabler
+  window.tabler?.Collapse?.getInstance($("#menu"))?.hide();
+  $("#view").innerHTML = `<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>`;
+  try {
+    $("#view").innerHTML = await tela.fn();
+  } catch (e) {
+    $("#view").innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`;
+  }
+  contadores();
+}
+
+async function contadores() {
+  try {
+    const [met, opp, rotas] = await Promise.all([api("GET", "/metricas"), api("GET", "/oportunidades"), api("GET", "/trechos")]);
+    const valores = { ...met.promocoes_7d, oportunidades: opp.voos.filter((v) => v.oportunidade).length, rotas: rotas.length };
+    $$("[data-cont]").forEach((b) => {
+      const v = valores[b.dataset.cont] || 0;
+      b.textContent = v; b.classList.toggle("d-none", !v);
+    });
+  } catch {}
+}
+
+/* ---------- eventos ---------- */
+function entrar() {
+  $("#login").classList.add("d-none"); $("#app").classList.remove("d-none");
+  api("GET", "/status").then((s) => (STATUS = s)).catch(() => {});
+  navegar();
+}
+function sair() {
+  TOKEN = ""; store.set("");
+  $("#app").classList.add("d-none"); $("#login").classList.remove("d-none");
+}
+
+$("#aeroportos").innerHTML = Object.entries(CIDADES).map(([c, n]) => `<option value="${c}">${esc(n)}</option>`).join("");
+window.addEventListener("hashchange", navegar);
+
+$("#form-login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  TOKEN = $("#token").value.trim();
+  try { await api("GET", "/status"); store.set(TOKEN); $("#token").value = ""; entrar(); }
+  catch (err) { aviso(err.message); }
+});
+$("#btn-sair").addEventListener("click", (e) => { e.preventDefault(); sair(); });
+
+let ULTIMA_BUSCA = null;
+document.addEventListener("submit", async (e) => {
+  if (e.target.id !== "form-busca") return;
+  e.preventDefault();
+  const acao = e.submitter?.value || "pesquisar";
+  const corpo = lerBusca(e.target);
+  const botao = e.submitter; if (botao) botao.disabled = true;
+  try {
+    if (acao === "monitorar") {
+      const t = await api("POST", "/trechos", corpo);
+      aviso(`Rota ${t.origem} → ${t.destino} monitorada${STATUS?.busca_voos_ativa ? ". Buscando preços…" : ""}`);
+      location.hash === "#/rotas" ? navegar() : (location.hash = "#/rotas");
+    } else {
+      $("#resultado").innerHTML = `<div class="card-body border-top text-center"><div class="spinner-border text-primary"></div><div class="text-secondary mt-2">Consultando o Google Flights…</div></div>`;
+      const r = await api("POST", "/pesquisar", corpo);
+      ULTIMA_BUSCA = corpo;
+      $("#resultado").innerHTML = resultadoBusca(r, corpo);
+    }
+  } catch (err) {
+    aviso(err.message);
+    if (acao !== "monitorar") $("#resultado").innerHTML = "";
+  } finally { if (botao) botao.disabled = false; }
+});
+
+async function mostrarPrecos(id) {
+  const r = await api("GET", `/trechos/${id}/precos?limite=4`);
+  const alvo = $(`#precos-${id}`); if (!alvo) return;
+  alvo.textContent = r.precos.length
+    ? `Menor já visto: ${brl(r.minimo_historico)}. Últimas: ` + r.precos.map((p) => `${brl(p.valor)} em ${dia(p.data_ida)}${p.cia ? " (" + p.cia + ")" : ""}`).join(", ") + "."
+    : STATUS?.busca_voos_ativa ? "Nenhuma cotação ainda. Toque em “Buscar agora”." : "Busca de preços desligada: falta a SERPAPI_KEY.";
+}
+
+document.addEventListener("change", (e) => {
+  if (e.target.id === "todos") { sessionStorage.setItem("todos", e.target.checked ? "1" : "0"); navegar(); }
+  if (e.target.id === "f-dias") { sessionStorage.setItem("dias", e.target.value); navegar(); }
+  if (e.target.id === "f-programa") { sessionStorage.setItem("programa", e.target.value.trim()); navegar(); }
+});
+
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("button");
+  if (!b || b.closest("form")) return;
+  try {
+    if (b.hasAttribute("data-monitorar-busca") && ULTIMA_BUSCA) {
+      const t = await api("POST", "/trechos", ULTIMA_BUSCA);
+      aviso(`Rota ${t.origem} → ${t.destino} monitorada`);
+      location.hash = "#/rotas";
+    } else if (b.dataset.exec) {
+      b.disabled = true;
+      await api("POST", `/executar/${b.dataset.exec}`);
+      aviso({ teste: "Teste enviado ao Telegram", voos: "Buscando preços de todas as rotas", rss: "Coleta iniciada" }[b.dataset.exec] || "Tarefa iniciada");
+      setTimeout(navegar, b.dataset.exec === "teste" ? 0 : 20000);
+    } else if (b.dataset.toggle) {
+      const retomar = b.dataset.ativo !== "1";
+      await api("PATCH", `/trechos/${b.dataset.toggle}`, { ativo: retomar });
+      aviso(retomar ? "Rota retomada" : "Rota pausada"); navegar();
+    } else if (b.dataset.remover) {
+      if (!confirm(`Remover a rota #${b.dataset.remover}? O histórico de preços dela também será apagado.`)) return;
+      await api("DELETE", `/trechos/${b.dataset.remover}`);
+      aviso("Rota removida"); navegar();
+    } else if (b.dataset.precos) {
+      await mostrarPrecos(b.dataset.precos);
+    } else if (b.dataset.buscar) {
+      b.disabled = true;
+      await api("POST", `/trechos/${b.dataset.buscar}/buscar`);
+      aviso("Buscando preços no Google Flights…");
+      setTimeout(() => (location.hash === "#/emissoes" ? navegar() : mostrarPrecos(b.dataset.buscar)), 25000);
+    }
+  } catch (err) { aviso(err.message); }
+  finally { if (b.dataset.exec || b.dataset.buscar) setTimeout(() => (b.disabled = false), 3000); }
+});
+
+if (TOKEN) api("GET", "/status").then(entrar).catch(() => $("#login").classList.remove("d-none"));
+else $("#login").classList.remove("d-none");
+</script>
+</body>
+</html>
